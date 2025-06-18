@@ -1,0 +1,18 @@
+# LLM蜜罐项目依赖库
+# 核心AI和API相关
+openai>=1.0.0
+tiktoken>=0.5.0
+
+# 配置和环境变量
+python-dotenv>=1.0.0
+PyYAML>=6.0
+
+# 数据库连接
+mysql-connector-python>=8.0.0
+
+# Web框架和CORS
+Flask>=2.3.0
+Flask-CORS>=4.0.0
+
+# SSH服务器
+paramiko>=3.0.0 
