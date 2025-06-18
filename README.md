@@ -46,7 +46,10 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 **启动蜜罐**
 
 ```bash
-python llm/server.py -e .env -c configSSH.yml
+cd llm
+python server.py -e .env -c configSSH.yml
+
+python llm/server.py -e llm/.env -c llm/configSSH.yml
 ```
 
 ### 终端2

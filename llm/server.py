@@ -13,6 +13,7 @@ import paramiko
 import socket
 import os
 import select
+import uuid
 from paramiko import ServerInterface, Transport
 
 # 设置 Kimi API 的基础 URL
@@ -130,6 +131,61 @@ def handle_cd_command(user_input, current_dir, username):
     return current_dir
 
 
+def format_ai_response(response, command):
+    """格式化AI响应，使其更符合真实Linux命令的输出格式"""
+    # 移除可能的多余提示符和命令前缀
+    response = re.sub(r'\$\s*$', '', response)
+    response = re.sub(r'^.*?\$\s*', '', response)  # 移除开头的提示符
+    response = re.sub(r'^.*?\$\s*', '', response)  # 再次移除，以防有多层
+    
+    # 根据命令类型进行特殊处理
+    command_lower = command.lower().strip()
+    
+    if command_lower == 'ls' or command_lower.startswith('ls '):
+        # ls命令格式化
+        lines = response.split('\n')
+        formatted_lines = []
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('$') and not line.startswith(command_lower):
+                # 确保ls输出格式正确
+                if not re.match(r'^[d-][rwx-]{9}\s+\d+', line):
+                    # 如果不是标准ls格式，尝试格式化
+                    if os.path.basename(line):
+                        formatted_lines.append(line)
+                else:
+                    formatted_lines.append(line)
+        return '\n'.join(formatted_lines) if formatted_lines else response
+    
+    elif command_lower == 'pwd':
+        # pwd命令应该只返回路径
+        path_match = re.search(r'/([^/\s]+/?)*', response)
+        if path_match:
+            return path_match.group(0)
+        return response.strip()
+    
+    elif command_lower == 'whoami':
+        # whoami命令应该只返回用户名
+        # 移除可能包含的命令本身
+        cleaned_response = re.sub(r'^whoami\s*', '', response)
+        username_match = re.search(r'\b\w+\b', cleaned_response)
+        if username_match:
+            return username_match.group(0)
+        return cleaned_response.strip()
+    
+    elif command_lower.startswith('cat ') or command_lower.startswith('head ') or command_lower.startswith('tail '):
+        # 文件内容命令，保持原格式但清理命令前缀
+        return re.sub(r'^.*?\$\s*', '', response)
+    
+    elif command_lower in ['clear', 'reset']:
+        # 清屏命令
+        return '\033[2J\033[H'  # ANSI清屏序列
+    
+    else:
+        # 其他命令，保持原格式但清理多余内容
+        return response.strip()
+
+
 class HoneyPotServer(ServerInterface):
     def __init__(self, openai_client, identity, model_name, temperature, max_tokens, output_dir, log_file, username,
                  hostname):
@@ -148,11 +204,56 @@ class HoneyPotServer(ServerInterface):
         self.running = True
         self.input_cond = threading.Condition()
         self.debug = True  # 调试模式开关
+        
+        # 生成会话唯一标识符
+        self.session_uuid = str(uuid.uuid4())
+        self.session_start_time = datetime.now()
+        
+        # 创建日志文件路径
+        timestamp = self.session_start_time.strftime("%Y-%m-%d_%H-%M-%S")
+        logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
+        os.makedirs(logs_dir, exist_ok=True)  # 确保目录存在
+        self.log_ssh_file = os.path.join(logs_dir, f"logSSH_{self.session_uuid}_{timestamp}.txt")
+        self.history_ssh_file = os.path.join(logs_dir, f"historySSH_{self.session_uuid}_{timestamp}.txt")
+
+    def log_login_info(self):
+        """记录登录信息到logSSH文件，格式与ssh_module.py可解析的格式一致"""
+        try:
+            # 获取客户端IP地址
+            client_ip = "127.0.0.1"  # 默认值
+            
+            # 优先从transport获取客户端IP
+            if hasattr(self, 'transport') and self.transport:
+                try:
+                    client_ip = self.transport.getpeername()[0]
+                except:
+                    pass
+            # 如果transport不可用，尝试从channel获取
+            elif hasattr(self, 'channel') and self.channel:
+                try:
+                    client_ip = self.channel.getpeername()[0]
+                except:
+                    pass
+            
+            # 生成符合ssh_module.py解析格式的登录记录
+            # 格式: username terminal src_ip time_date_start
+            # 例如: root pts/0 192.168.1.100 Mon Aug 15 08:44:32 2024
+            login_record = f"{self.username} pts/0 {client_ip} {self.session_start_time.strftime('%a %b %d %H:%M:%S %Y')}\n"
+            
+            # 写入logSSH文件
+            with open(self.log_ssh_file, 'w', encoding='utf-8') as f:
+                f.write(login_record)
+            
+            print(f"[SSH蜜罐] 登录信息已记录到: {self.log_ssh_file}")
+            
+        except Exception as e:
+            print(f"[SSH蜜罐] 记录登录信息失败: {e}")
 
     def check_auth_password(self, username, password):
         # 记录登录尝试
         with open(self.log_file, 'a') as f:
             f.write(f"[{datetime.now()}] 登录尝试 - 用户: {username}, 密码: {password}\n")
+        
         # 验证用户名密码
         if username == SSH_USER and password == SSH_PASS:
             print(f"[SSH蜜罐] {username} 登录成功")
@@ -181,6 +282,10 @@ class HoneyPotServer(ServerInterface):
         # 处理Shell请求
         print("[SSH蜜罐] Shell请求已接受")
         self.channel = channel
+        
+        # 在shell建立时记录登录信息（此时channel已可用）
+        self.log_login_info()
+        
         # 创建新线程处理Shell会话
         threading.Thread(target=self.handle_shell, daemon=True).start()
         return True
@@ -200,8 +305,21 @@ class HoneyPotServer(ServerInterface):
         self.input_buffer = ""
 
         # 发送欢迎信息
-        welcome_msg = f"Last login: {today.strftime('%Y-%m-%d %H:%M:%S')} from {self.channel.getpeername()[0]}\n"
-        welcome_msg += "Welcome to Ubuntu 20.04 LTS (GNU/Linux 5.4.0-100-generic x86_64)\n"
+        client_ip = self.channel.getpeername()[0] if self.channel else "unknown"
+        welcome_msg = f"Last login: {today.strftime('%a %b %d %H:%M:%S %Y')} from {client_ip}\n"
+        welcome_msg += "Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-100-generic x86_64)\n\n"
+        welcome_msg += " * Documentation:  https://help.ubuntu.com/\n"
+        welcome_msg += " * Management:     https://landscape.canonical.com\n"
+        welcome_msg += " * Support:        https://ubuntu.com/advantage\n\n"
+        welcome_msg += "  System information as of " + today.strftime('%a %b %d %H:%M:%S %Y') + "\n\n"
+        welcome_msg += "  System load:  0.52              Users logged in:       1\n"
+        welcome_msg += "  Usage of /:   23.4% of 251.0GB  IPv4 address:         192.168.1.100\n"
+        welcome_msg += "  Memory usage: 45%               System uptime:         2 days\n"
+        welcome_msg += "  Swap usage:   0%\n\n"
+        welcome_msg += "0 updates can be applied immediately.\n\n"
+        welcome_msg += "The list of available updates is more than a week old.\n"
+        welcome_msg += "To check for new updates run: sudo apt update\n\n"
+        
         self.channel.send(welcome_msg)
         if self.debug: print("[SSH蜜罐] 欢迎信息已发送")
 
@@ -236,6 +354,8 @@ class HoneyPotServer(ServerInterface):
             # 调用LLM生成响应
             messages.append({"role": "user", "content": command})
             try:
+                if self.debug: print(f"[SSH蜜罐] 正在调用LLM API，命令: {command}")
+                
                 response = self.openai_client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
@@ -243,23 +363,34 @@ class HoneyPotServer(ServerInterface):
                     max_tokens=self.max_tokens
                 )
                 ai_response = response.choices[0].message.content
-                # 移除可能包含的多余提示符
-                ai_response = re.sub(r'\$\s*$', '', ai_response)
-                self.channel.send(ai_response)
+                
+                if self.debug: print(f"[SSH蜜罐] LLM原始响应: {repr(ai_response)}")
+                
+                # 格式化AI响应，使其更逼真
+                formatted_response = format_ai_response(ai_response, command)
+                
+                if self.debug: print(f"[SSH蜜罐] 格式化后响应: {repr(formatted_response)}")
+                
+                # 发送响应给客户端
+                self.channel.send(formatted_response)
                 messages.append({"role": "assistant", "content": ai_response})
-                if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(ai_response)}")
+                if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(formatted_response)}")
 
-                # 记录输出
-                with open(self.output_dir, "a", encoding="utf-8") as f:
-                    f.write(f"用户: {command}\n")
-                    f.write(f"系统: {ai_response}\n")
+                # 记录交互到historySSH文件
+                try:
+                    with open(self.history_ssh_file, "a", encoding="utf-8") as f:
+                        f.write(f"{self.username}@{self.hostname}:{display_dir}$ {command}\n")
+                        f.write(f"{formatted_response}\n")
+                    if self.debug: print(f"[SSH蜜罐] 交互已记录到: {self.history_ssh_file}")
+                except Exception as e:
+                    print(f"[SSH蜜罐] 记录交互历史失败: {e}")
 
             except Exception as e:
-                error_msg = f"[错误]: {e}\n"
+                error_msg = f"bash: {command}: command not found\n"
                 self.channel.send(error_msg)
-                print(error_msg)
-                self.running = False
-                break
+                print(f"[SSH蜜罐] LLM调用失败，发送默认错误消息: {e}")
+                # 不要因为单个命令失败就结束会话，继续循环
+                continue
 
         # 关闭连接
         if self.channel is not None:
@@ -267,44 +398,60 @@ class HoneyPotServer(ServerInterface):
         print(f"[SSH蜜罐] 连接已关闭")
 
     def read_until_newline(self):
-        """使用select监听数据，兼容多种换行符格式"""
+        """使用select监听数据，实时回显用户输入"""
         buffer = self.input_buffer
         self.input_buffer = ""  # 重用现有缓冲区
+        
+        if self.debug: print(f"[SSH蜜罐] 开始读取输入，初始缓冲区: {repr(buffer)}")
 
         while self.running and self.channel is not None and self.channel.active:
             # 使用select监听通道可读事件
             try:
-                readable, _, _ = select.select([self.channel], [], [], 1.0)  # 1秒超时
+                readable, _, _ = select.select([self.channel], [], [], 0.1)  # 100ms超时，提高响应性
                 if not readable:
-                    if self.debug: print("[SSH蜜罐] 读取超时，继续循环")
                     continue  # 超时继续循环
 
-                data = self.channel.recv(1024)
+                data = self.channel.recv(1)  # 一次读取一个字符
                 if not data:
                     if self.debug: print("[SSH蜜罐] 收到空数据，连接可能已关闭")
                     break
 
-                received = data.decode('utf-8', errors='ignore')
-                buffer += received
-                if self.debug: print(f"[SSH蜜罐] 接收到数据: {received!r}，当前缓冲区: {buffer!r}")
-
-                # 检查多种换行符格式
-                if '\n' in buffer:
-                    # 处理 Unix 换行符 \n
-                    command, self.input_buffer = buffer.split('\n', 1)
-                    if self.debug: print(f"[SSH蜜罐] 解析到命令(Unix): {command!r}，剩余缓冲区: {self.input_buffer!r}")
-                    return command.strip()
-                elif '\r\n' in buffer:
-                    # 处理 Windows 换行符 \r\n
-                    command, self.input_buffer = buffer.split('\r\n', 1)
-                    if self.debug: print(
-                        f"[SSH蜜罐] 解析到命令(Windows): {command!r}，剩余缓冲区: {self.input_buffer!r}")
-                    return command.strip()
-                elif '\r' in buffer:
-                    # 处理旧 Mac 换行符 \r
-                    command, self.input_buffer = buffer.split('\r', 1)
-                    if self.debug: print(f"[SSH蜜罐] 解析到命令(Mac): {command!r}，剩余缓冲区: {self.input_buffer!r}")
-                    return command.strip()
+                char = data.decode('utf-8', errors='ignore')
+                if self.debug: print(f"[SSH蜜罐] 收到字符: {repr(char)} (ASCII: {ord(char)})")
+                
+                # 处理特殊字符
+                # if char == '\r':  # 回车键
+                #     if self.debug: print("[SSH蜜罐] 收到回车键，忽略")
+                #     continue  # 忽略回车，等待换行
+                if char == '\r':  # 回车键
+                    # 发送换行符给客户端，让用户看到换行
+                    self.channel.send('\n')
+                    if self.debug: print(f"[SSH蜜罐] 收到回车键，返回命令: {repr(buffer)}")
+                    return buffer.strip()
+                elif char == '\x7f':  # 退格键 (Backspace)
+                    if buffer:
+                        buffer = buffer[:-1]
+                        # 发送退格序列：退格、空格、退格
+                        self.channel.send('\b \b')
+                        if self.debug: print(f"[SSH蜜罐] 退格，缓冲区: {repr(buffer)}")
+                elif char == '\x03':  # Ctrl+C
+                    buffer = ""
+                    self.channel.send('\n')
+                    if self.debug: print("[SSH蜜罐] 收到Ctrl+C")
+                    return ""
+                elif char == '\x04':  # Ctrl+D (EOF)
+                    if self.debug: print("[SSH蜜罐] 收到Ctrl+D")
+                    return ""
+                elif char == '\x1b':  # ESC键，可能是ANSI转义序列的开始
+                    if self.debug: print("[SSH蜜罐] 收到ESC键，忽略")
+                    continue
+                elif ord(char) >= 32 and ord(char) != 127:  # 可打印字符，排除DEL
+                    buffer += char
+                    # 实时回显字符
+                    self.channel.send(char)
+                    if self.debug: print(f"[SSH蜜罐] 添加字符，缓冲区: {repr(buffer)}")
+                else:
+                    if self.debug: print(f"[SSH蜜罐] 忽略控制字符: {repr(char)} (ASCII: {ord(char)})")
 
             except Exception as e:
                 print(f"[SSH蜜罐] 读取错误: {e}")
@@ -313,7 +460,7 @@ class HoneyPotServer(ServerInterface):
         # 保存未解析的缓冲区
         self.input_buffer = buffer
         if self.debug and buffer:
-            print(f"[SSH蜜罐] 返回剩余缓冲区命令: {buffer!r}")
+            print(f"[SSH蜜罐] 返回剩余缓冲区命令: {repr(buffer)}")
         return buffer.strip()
 
 
@@ -336,6 +483,8 @@ def handle_ssh_connection(client_socket, openai_client, identity, model_name,
         # 设置服务器接口
         server = HoneyPotServer(openai_client, identity, model_name, temperature, max_tokens, output_dir, log_file,
                                 username, hostname)
+        # 将transport传递给server以便获取客户端IP
+        server.transport = transport
         transport.start_server(server=server)
 
         # 等待连接关闭

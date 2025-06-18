@@ -1,0 +1,2 @@
+root@honeypot:~$ whoami
+root

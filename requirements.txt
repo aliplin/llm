@@ -16,3 +16,6 @@ Flask-CORS>=4.0.0
 
 # SSH服务器
 paramiko>=3.0.0 
+
+# uuid
+uuid
