@@ -18,6 +18,8 @@
         <button id="shelLM_SessionsBtn">shelLM Sessions</button>
         <button id="commandsBtn">Commands</button>
         <button id="answersBtn">Answers</button>
+        <button id="pop3SessionsBtn">POP3 Sessions</button>
+        <button id="httpSessionsBtn">HTTP Sessions</button>
     </div>
 
     <br>
@@ -95,6 +97,73 @@
             </tr>
         </thead>
         <tbody id="answers-table-body">
+            <!-- Rows will be added here -->
+        </tbody>
+    </table>
+
+    <!-- POP3 Sessions Table -->
+    <table id="pop3-sessions-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Time & Date</th>
+                <th>Source IP</th>
+                <th>Destination IP</th>
+                <th>Source Port</th>
+                <th>Destination Port</th>
+            </tr>
+        </thead>
+        <tbody id="pop3-sessions-table-body">
+            <!-- Rows will be added here -->
+        </tbody>
+    </table>
+
+    <!-- POP3 Commands Table -->
+    <table id="pop3-commands-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>command_id</th>
+                <th>pop3_session_id</th>
+                <th>Command</th>
+                <th>Response</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody id="pop3-commands-table-body">
+            <!-- Rows will be added here -->
+        </tbody>
+    </table>
+
+    <!-- HTTP Sessions Table -->
+    <table id="http-sessions-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Client IP</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+            </tr>
+        </thead>
+        <tbody id="http-sessions-table-body">
+            <!-- Rows will be added here -->
+        </tbody>
+    </table>
+
+    <!-- HTTP Requests Table -->
+    <table id="http-requests-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>request_id</th>
+                <th>http_session_id</th>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Headers</th>
+                <th>Request Time</th>
+                <th>Response</th>
+            </tr>
+        </thead>
+        <tbody id="http-requests-table-body">
             <!-- Rows will be added here -->
         </tbody>
     </table>

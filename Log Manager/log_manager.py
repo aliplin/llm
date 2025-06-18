@@ -119,5 +119,41 @@ def get_commands_answers(shellm_session_id):
         for row in results
     ])
 
+@app.route('/pop3_sessions', methods=['GET'])
+def get_pop3_sessions():
+    conn, cursor = connect_to_db()
+    cursor.execute("SELECT * FROM pop3_session ORDER BY id DESC;")
+    sessions = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(sessions)
+
+@app.route('/pop3_commands/<int:session_id>', methods=['GET'])
+def get_pop3_commands(session_id):
+    conn, cursor = connect_to_db()
+    cursor.execute("SELECT * FROM pop3_command WHERE pop3_session_id = %s ORDER BY command_id ASC;", (session_id,))
+    commands = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(commands)
+
+@app.route('/http_sessions', methods=['GET'])
+def get_http_sessions():
+    conn, cursor = connect_to_db()
+    cursor.execute("SELECT * FROM http_session ORDER BY id DESC;")
+    sessions = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(sessions)
+
+@app.route('/http_requests/<int:session_id>', methods=['GET'])
+def get_http_requests(session_id):
+    conn, cursor = connect_to_db()
+    cursor.execute("SELECT * FROM http_request WHERE http_session_id = %s ORDER BY request_id ASC;", (session_id,))
+    requests = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(requests)
+
 if __name__ == "__main__":
     app.run(debug=True)
