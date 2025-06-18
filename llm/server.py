@@ -15,13 +15,17 @@ import os
 import select
 import uuid
 from paramiko import ServerInterface, Transport
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+import sys
 
 # 设置 Kimi API 的基础 URL
 OpenAI.api_base = "https://api.moonshot.cn/v1"
 today = datetime.now()
 
-# SSH服务配置
+# 服务配置
 SSH_PORT = 5656
+HTTP_PORT = 8080
 SSH_USER = "root"
 SSH_PASS = "123456"
 
@@ -235,16 +239,37 @@ class HoneyPotServer(ServerInterface):
                 except:
                     pass
             
+            # 生成会话ID
+            session_id = str(uuid.uuid4())
+            timestamp = self.session_start_time.strftime('%Y-%m-%d_%H-%M-%S')
+            
+            # 创建日志文件路径
+            logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
+            os.makedirs(logs_dir, exist_ok=True)  # 确保目录存在
+            
+            # 使用会话ID和时间戳作为文件名
+            log_ssh_file = os.path.join(logs_dir, f"logSSH_{session_id}_{timestamp}.txt")
+            
             # 生成符合ssh_module.py解析格式的登录记录
             # 格式: username terminal src_ip time_date_start
             # 例如: root pts/0 192.168.1.100 Mon Aug 15 08:44:32 2024
             login_record = f"{self.username} pts/0 {client_ip} {self.session_start_time.strftime('%a %b %d %H:%M:%S %Y')}\n"
             
-            # 写入logSSH文件
-            with open(self.log_ssh_file, 'w', encoding='utf-8') as f:
+            # 写入登录记录
+            with open(log_ssh_file, 'w', encoding='utf-8') as f:
                 f.write(login_record)
             
-            print(f"[SSH蜜罐] 登录信息已记录到: {self.log_ssh_file}")
+            print(f"[SSH蜜罐] 登录信息已记录到: {log_ssh_file}")
+            
+            # 创建命令历史文件
+            history_ssh_file = os.path.join(logs_dir, f"historySSH_{session_id}_{timestamp}.txt")
+            self.history_ssh_file = history_ssh_file
+            
+            # 写入会话开始时间
+            with open(history_ssh_file, 'w', encoding='utf-8') as f:
+                f.write(f"Session started at: {self.session_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            
+            print(f"[SSH蜜罐] 历史记录文件已创建: {history_ssh_file}")
             
         except Exception as e:
             print(f"[SSH蜜罐] 记录登录信息失败: {e}")
@@ -257,10 +282,16 @@ class HoneyPotServer(ServerInterface):
         # 验证用户名密码
         if username == SSH_USER and password == SSH_PASS:
             print(f"[SSH蜜罐] {username} 登录成功")
+            # 不要手动发送认证响应，让paramiko处理
             return paramiko.AUTH_SUCCESSFUL
         return paramiko.AUTH_FAILED
 
+    def get_allowed_auths(self, username):
+        # 只允许密码认证
+        return 'password'
+
     def check_channel_request(self, kind, chanid):
+        # 只允许会话通道
         if kind == 'session':
             return paramiko.OPEN_SUCCEEDED
         return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
@@ -290,8 +321,33 @@ class HoneyPotServer(ServerInterface):
         threading.Thread(target=self.handle_shell, daemon=True).start()
         return True
 
-    def get_allowed_auths(self, username):
-        return 'password'
+    def check_channel_direct_tcpip_request(self, channel, dest_addr, dest_port, origin_addr, origin_port):
+        print(f"[SSH蜜罐] 收到直接TCP/IP请求: {dest_addr}:{dest_port}")
+        return False
+
+    def check_channel_x11_request(self, channel, single_connection, auth_protocol, auth_cookie, screen_number):
+        print("[SSH蜜罐] 收到X11请求")
+        return False
+
+    def check_channel_forward_agent_request(self, channel):
+        print("[SSH蜜罐] 收到代理转发请求")
+        return False
+
+    def check_channel_window_change_request(self, channel, width, height, width_pixels, height_pixels):
+        print(f"[SSH蜜罐] 收到窗口大小改变请求: {width}x{height}")
+        return True
+
+    def check_channel_env_request(self, channel, name, value):
+        print(f"[SSH蜜罐] 收到环境变量请求: {name}={value}")
+        return True
+
+    def check_channel_subsystem_request(self, channel, subsystem):
+        print(f"[SSH蜜罐] 收到子系统请求: {subsystem}")
+        return False
+
+    def check_port_forward_request(self, address, port):
+        print(f"[SSH蜜罐] 收到端口转发请求: {address}:{port}")
+        return False
 
     def handle_shell(self):
         # 构建LLM交互环境
@@ -420,13 +476,10 @@ class HoneyPotServer(ServerInterface):
                 if self.debug: print(f"[SSH蜜罐] 收到字符: {repr(char)} (ASCII: {ord(char)})")
                 
                 # 处理特殊字符
-                # if char == '\r':  # 回车键
-                #     if self.debug: print("[SSH蜜罐] 收到回车键，忽略")
-                #     continue  # 忽略回车，等待换行
-                if char == '\r':  # 回车键
+                if char == '\r' or char == '\n':  # 回车或换行键
                     # 发送换行符给客户端，让用户看到换行
                     self.channel.send('\n')
-                    if self.debug: print(f"[SSH蜜罐] 收到回车键，返回命令: {repr(buffer)}")
+                    if self.debug: print(f"[SSH蜜罐] 收到回车/换行键，返回命令: {repr(buffer)}")
                     return buffer.strip()
                 elif char == '\x7f':  # 退格键 (Backspace)
                     if buffer:
@@ -463,6 +516,115 @@ class HoneyPotServer(ServerInterface):
             print(f"[SSH蜜罐] 返回剩余缓冲区命令: {repr(buffer)}")
         return buffer.strip()
 
+    def global_request(self, channel, request_type, want_reply):
+        print(f"[SSH蜜罐] 收到全局请求: {request_type}")
+
+        # 处理认证后的会话请求
+        if request_type == "pty-req":
+            print("[SSH蜜罐] 处理伪终端请求")
+            return True
+        elif request_type == "shell":
+            print("[SSH蜜罐] 处理Shell请求")
+            return True
+        elif request_type == "env":
+            print("[SSH蜜罐] 处理环境变量请求")
+            return True
+        elif request_type == "agent-forward":
+            print("[SSH蜜罐] 处理SSH代理转发请求")
+            return want_reply
+
+        # 原有处理逻辑
+        if request_type == "hostkeys-00@openssh.com":
+            return True
+        return want_reply
+
+    def auth_response(self, success):
+        """重写认证响应方法，主动发送认证成功包"""
+        from paramiko.message import Message
+
+        msg = Message()
+        if success:
+            msg.add_byte(paramiko.common.cMSG_USERAUTH_SUCCESS)
+            self.transport._send_message(msg)
+            print("[SSH蜜罐] 已发送认证成功响应 (31号包)")
+        else:
+            super().auth_response(success)
+
+
+class HTTPHandler(BaseHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        self.openai_client = kwargs.pop('openai_client', None)
+        self.identity = kwargs.pop('identity', None)
+        self.model_name = kwargs.pop('model_name', None)
+        self.temperature = kwargs.pop('temperature', None)
+        self.max_tokens = kwargs.pop('max_tokens', None)
+        self.output_dir = kwargs.pop('output_dir', None)
+        super().__init__(*args, **kwargs)
+
+    def do_GET(self):
+        try:
+            # 记录请求
+            client_ip = self.client_address[0]
+            request_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 生成独立日志文件名
+            logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            session_uuid = str(uuid.uuid4())
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            log_file = os.path.join(logs_dir, f"logHTTP_{session_uuid}_{timestamp}.txt")
+            # 读取请求头
+            headers = dict(self.headers)
+            # 构建请求信息
+            request_info = {
+                "method": self.command,
+                "path": self.path,
+                "headers": headers,
+                "client_ip": client_ip,
+                "time": request_time
+            }
+            # 调用LLM生成响应
+            messages = [
+                {"role": "system", "content": self.identity['prompt']},
+                {"role": "user", "content": json.dumps(request_info)}
+            ]
+            response = self.openai_client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            # 解析LLM响应
+            content = response.choices[0].message.content
+            # 发送响应
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(content.encode())
+            # 记录响应到独立日志文件
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(f"HTTP Request: {json.dumps(request_info)}\n")
+                f.write(f"Response: {content}\n")
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b"Internal Server Error")
+
+def start_http_server(openai_client, identity, model_name, temperature, max_tokens, output_dir, log_file):
+    """启动HTTP服务器"""
+    def handler(*args, **kwargs):
+        return HTTPHandler(*args, 
+                         openai_client=openai_client,
+                         identity=identity,
+                         model_name=model_name,
+                         temperature=temperature,
+                         max_tokens=max_tokens,
+                         output_dir=output_dir,
+                         **kwargs)
+    
+    server = HTTPServer(('0.0.0.0', HTTP_PORT), handler)
+    print(f"HTTP服务器启动在端口 {HTTP_PORT}")
+    server.serve_forever()
 
 def handle_ssh_connection(client_socket, openai_client, identity, model_name,
                           temperature, max_tokens, output_dir, log_file, username, hostname):
@@ -479,13 +641,21 @@ def handle_ssh_connection(client_socket, openai_client, identity, model_name,
         # 创建SSH传输
         transport = Transport(client_socket)
         transport.add_server_key(host_key)
-
+        
         # 设置服务器接口
         server = HoneyPotServer(openai_client, identity, model_name, temperature, max_tokens, output_dir, log_file,
                                 username, hostname)
-        # 将transport传递给server以便获取客户端IP
         server.transport = transport
+        
+        # 启动服务器模式
+        print("[SSH蜜罐] 开始SSH协议协商...")
+        
+        # 设置服务器版本
+        transport.local_version = "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5"
+        
+        # 启动服务器
         transport.start_server(server=server)
+        print("[SSH蜜罐] SSH协议协商完成")
 
         # 等待连接关闭
         transport.join()
@@ -493,6 +663,9 @@ def handle_ssh_connection(client_socket, openai_client, identity, model_name,
     except Exception as e:
         error_msg = f"[SSH蜜罐错误]: {e}\n"
         print(error_msg)
+        print("[SSH蜜罐] 详细错误信息:")
+        import traceback
+        traceback.print_exc()
         if 'transport' in locals():
             transport.close()
 
@@ -501,62 +674,142 @@ def main():
     try:
         # 读取命令行参数
         config_path, env_path, model_name, temperature, max_tokens, output_dir, log_file = read_arguments()
-
+        # 读取各自配置文件
+        with open(os.path.join(os.path.dirname(__file__), 'configSSH.yml'), 'r', encoding='utf-8') as f:
+            ssh_identity = yaml.safe_load(f)['personality']
+        with open(os.path.join(os.path.dirname(__file__), 'configHTTP.yml'), 'r', encoding='utf-8') as f:
+            http_identity = yaml.safe_load(f)['personality']
+        with open(os.path.join(os.path.dirname(__file__), 'configPOP3.yml'), 'r', encoding='utf-8') as f:
+            pop3_identity = yaml.safe_load(f)['personality']
         # 设置API密钥
         openai_client = set_key(env_path)
-
-        # 读取配置文件
-        with open(config_path, 'r', encoding="utf-8") as file:
-            identity = yaml.safe_load(file)
-        identity = identity['personality']
-
-        # 设置输出目录和日志文件
-        if not output_dir:
-            output_dir = identity['output'].strip()
-        reset_prompt = identity['reset_prompt']
-        final_instruction = identity['final_instr']
-        protocol = identity['type'].strip()
-        if not log_file:
-            log_file = identity['log'].strip()
-
-        # 从配置文件获取username和hostname，设置默认值
-        username = identity.get('username', 'root')
-        hostname = identity.get('hostname', 'honeypot')
-
-        # 读取历史记录
-        prompt = read_history(identity, output_dir, reset_prompt)
-
-        # 设置模型参数
-        model_name, temperature, max_tokens, output_dir, log_file = set_parameters(
-            identity, model_name, temperature, max_tokens, output_dir, log_file
+        # 设置各自参数
+        ssh_model, ssh_temp, ssh_max_tokens, ssh_output, ssh_log = set_parameters(
+            ssh_identity, model_name, temperature, max_tokens, output_dir, log_file)
+        http_model, http_temp, http_max_tokens, http_output, http_log = set_parameters(
+            http_identity, None, None, None, None, None)
+        pop3_model, pop3_temp, pop3_max_tokens, pop3_output, pop3_log = set_parameters(
+            pop3_identity, None, None, None, None, None)
+        # 启动SSH服务器
+        ssh_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ssh_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        ssh_server.bind(('0.0.0.0', SSH_PORT))
+        ssh_server.listen(100)
+        print(f"SSH服务器启动在端口 {SSH_PORT}")
+        # 启动HTTP服务器（在新线程中，传递http_identity和参数）
+        http_thread = threading.Thread(
+            target=start_http_server,
+            args=(openai_client, http_identity, http_model, http_temp, http_max_tokens, http_output, http_log)
         )
-
-        # 初始化SSH服务器 socket
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(('0.0.0.0', SSH_PORT))
-        server.listen(5)
-        print(f"[SSH蜜罐] 正在监听端口 {SSH_PORT}...")
-
-        # 处理客户端连接
+        http_thread.daemon = True
+        http_thread.start()
+        # 启动POP3服务器（新线程，传递pop3_identity和参数）
+        def start_pop3():
+            import uuid
+            import threading
+            from datetime import datetime
+            import socket
+            logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            pop3_port = int(pop3_identity.get('port', 110))
+            def handle_pop3_client(client_sock, client_addr):
+                session_uuid = str(uuid.uuid4())
+                session_start_time = datetime.now()
+                timestamp = session_start_time.strftime("%Y-%m-%d_%H-%M-%S")
+                log_file = os.path.join(logs_dir, f"logPOP3_{session_uuid}_{timestamp}.txt")
+                history_file = os.path.join(logs_dir, f"historyPOP3_{session_uuid}_{timestamp}.txt")
+                try:
+                    with open(log_file, 'a', encoding='utf-8') as logf:
+                        logf.write(f"POP3 session start: {session_start_time} from {client_addr[0]}:{client_addr[1]}\n")
+                    with open(history_file, 'a', encoding='utf-8') as histf:
+                        histf.write(f"Session started at: {session_start_time}\n")
+                except Exception as e:
+                    print(f"[POP3蜜罐] 日志文件创建失败: {e}")
+                messages = [
+                    {"role": "system", "content": pop3_identity['prompt'] + pop3_identity.get('final_instr', '')}
+                ]
+                banner = "Connected to pop.domain.ext.\r\nEscape character is '^]'.\r\n+OK ready\r\n> "
+                try:
+                    client_sock.sendall(banner.encode())
+                    with open(log_file, 'a', encoding='utf-8') as logf:
+                        logf.write(f"[BANNER] {banner}\n")
+                except Exception as e:
+                    print(f"[POP3蜜罐] 发送banner失败: {e}")
+                    client_sock.close()
+                    return
+                while True:
+                    try:
+                        data = b''
+                        while not data.endswith(b'\n') and not data.endswith(b'\r\n'):
+                            chunk = client_sock.recv(1024)
+                            if not chunk:
+                                raise ConnectionError('客户端断开连接')
+                            data += chunk
+                        command = data.decode(errors='ignore').strip()
+                        if not command:
+                            continue
+                        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        with open(log_file, 'a', encoding='utf-8') as logf:
+                            logf.write(f"[{now}] [CMD] {command}\n")
+                        with open(history_file, 'a', encoding='utf-8') as histf:
+                            histf.write(f"> {command}\n")
+                        messages.append({"role": "user", "content": command})
+                        try:
+                            response = openai_client.chat.completions.create(
+                                model=pop3_model,
+                                messages=messages,
+                                temperature=pop3_temp,
+                                max_tokens=pop3_max_tokens
+                            )
+                            ai_response = response.choices[0].message.content
+                        except Exception as e:
+                            ai_response = f"-ERR LLM服务异常: {e}\r\n> "
+                        with open(log_file, 'a', encoding='utf-8') as logf:
+                            logf.write(f"[{now}] [RESP] {ai_response}\n")
+                        with open(history_file, 'a', encoding='utf-8') as histf:
+                            histf.write(f"{ai_response}\n")
+                        try:
+                            client_sock.sendall(ai_response.encode())
+                        except Exception as e:
+                            print(f"[POP3蜜罐] 发送响应失败: {e}")
+                            break
+                        if command.lower() in ("quit", "exit", "logout"):
+                            break
+                    except Exception as e:
+                        print(f"[POP3蜜罐] 处理命令异常: {e}")
+                        break
+                client_sock.close()
+                with open(log_file, 'a', encoding='utf-8') as logf:
+                    logf.write(f"POP3 session end: {datetime.now()}\n")
+            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock.bind(('0.0.0.0', pop3_port))
+            server_sock.listen(50)
+            print(f"POP3蜜罐服务启动在端口 {pop3_port}")
+            while True:
+                try:
+                    client_sock, client_addr = server_sock.accept()
+                    print(f"[POP3蜜罐] 接受连接: {client_addr}")
+                    t = threading.Thread(target=handle_pop3_client, args=(client_sock, client_addr))
+                    t.daemon = True
+                    t.start()
+                except Exception as e:
+                    print(f"[POP3蜜罐] 主循环异常: {e}")
+                    continue
+        threading.Thread(target=start_pop3, daemon=True).start()
+        # 处理SSH连接
         while True:
-            client_socket, addr = server.accept()
-            print(f"[SSH蜜罐] 接收到来自 {addr} 的连接")
-            # 为每个连接创建新线程处理
-            client_thread = threading.Thread(
+            client_socket, addr = ssh_server.accept()
+            print(f"接受SSH连接: {addr[0]}:{addr[1]}")
+            ssh_thread = threading.Thread(
                 target=handle_ssh_connection,
-                args=(client_socket, openai_client, identity, model_name, temperature,
-                      max_tokens, output_dir, log_file, username, hostname)
+                args=(client_socket, openai_client, ssh_identity, ssh_model, ssh_temp, ssh_max_tokens, ssh_output, ssh_log, SSH_USER, "honeypot")
             )
-            client_thread.daemon = True
-            client_thread.start()
-
+            ssh_thread.daemon = True
+            ssh_thread.start()
     except Exception as e:
-        print(f"程序初始化失败: {e}")
-        if 'server' in locals():
-            server.close()
-        return
+        print(f"服务器错误: {e}")
+        raise
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

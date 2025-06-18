@@ -386,3 +386,144 @@ function handleIDClick(shellmSessionID) {
 document.addEventListener("DOMContentLoaded", () => {
     console.log("Log Manager Dashboard ready.");
 });
+
+// POP3 Sessions
+function fetchPOP3Sessions() {
+    fetch('http://127.0.0.1:5000/pop3_sessions')
+        .then(response => response.json())
+        .then(data => {
+            displayPOP3Sessions(data);
+        })
+        .catch(error => {
+            console.error('Error fetching POP3 sessions:', error);
+        });
+}
+function displayPOP3Sessions(sessions) {
+    hideAllTables();
+    const table = document.getElementById("pop3-sessions-table");
+    const tableBody = document.getElementById("pop3-sessions-table-body");
+    table.style.display = "table";
+    tableBody.innerHTML = "";
+    if (Array.isArray(sessions) && sessions.length > 0) {
+        sessions.forEach((session, index) => {
+            const row = document.createElement("tr");
+            for (let i = 0; i < 7; i++) {
+                const cell = document.createElement("td");
+                cell.textContent = session[i];
+                if (i === 0) {
+                    cell.style.cursor = "pointer";
+                    cell.addEventListener("click", () => fetchAndDisplayPOP3Commands(session[0]));
+                }
+                row.appendChild(cell);
+            }
+            tableBody.appendChild(row);
+        });
+    }
+}
+function fetchAndDisplayPOP3Commands(sessionID) {
+    fetch(`http://127.0.0.1:5000/pop3_commands/${sessionID}`)
+        .then(response => response.json())
+        .then(data => {
+            displayPOP3Commands(data);
+        })
+        .catch(error => {
+            console.error('Error fetching POP3 commands:', error);
+        });
+}
+function displayPOP3Commands(commands) {
+    hideAllTables();
+    const table = document.getElementById("pop3-commands-table");
+    const tableBody = document.getElementById("pop3-commands-table-body");
+    table.style.display = "table";
+    tableBody.innerHTML = "";
+    if (Array.isArray(commands) && commands.length > 0) {
+        commands.forEach((cmd, index) => {
+            const row = document.createElement("tr");
+            for (let i = 0; i < 5; i++) {
+                const cell = document.createElement("td");
+                cell.textContent = cmd[i];
+                row.appendChild(cell);
+            }
+            tableBody.appendChild(row);
+        });
+    }
+}
+// HTTP Sessions
+function fetchHTTPSessions() {
+    fetch('http://127.0.0.1:5000/http_sessions')
+        .then(response => response.json())
+        .then(data => {
+            displayHTTPSessions(data);
+        })
+        .catch(error => {
+            console.error('Error fetching HTTP sessions:', error);
+        });
+}
+function displayHTTPSessions(sessions) {
+    hideAllTables();
+    const table = document.getElementById("http-sessions-table");
+    const tableBody = document.getElementById("http-sessions-table-body");
+    table.style.display = "table";
+    tableBody.innerHTML = "";
+    if (Array.isArray(sessions) && sessions.length > 0) {
+        sessions.forEach((session, index) => {
+            const row = document.createElement("tr");
+            for (let i = 0; i < 4; i++) {
+                const cell = document.createElement("td");
+                cell.textContent = session[i];
+                if (i === 0) {
+                    cell.style.cursor = "pointer";
+                    cell.addEventListener("click", () => fetchAndDisplayHTTPRequests(session[0]));
+                }
+                row.appendChild(cell);
+            }
+            tableBody.appendChild(row);
+        });
+    }
+}
+function fetchAndDisplayHTTPRequests(sessionID) {
+    fetch(`http://127.0.0.1:5000/http_requests/${sessionID}`)
+        .then(response => response.json())
+        .then(data => {
+            displayHTTPRequests(data);
+        })
+        .catch(error => {
+            console.error('Error fetching HTTP requests:', error);
+        });
+}
+function displayHTTPRequests(requests) {
+    hideAllTables();
+    const table = document.getElementById("http-requests-table");
+    const tableBody = document.getElementById("http-requests-table-body");
+    table.style.display = "table";
+    tableBody.innerHTML = "";
+    if (Array.isArray(requests) && requests.length > 0) {
+        requests.forEach((req, index) => {
+            const row = document.createElement("tr");
+            for (let i = 0; i < 7; i++) {
+                const cell = document.createElement("td");
+                if (i === 4) {
+                    // headers字段格式化
+                    try {
+                        cell.textContent = JSON.stringify(JSON.parse(req[i]), null, 2);
+                    } catch (e) {
+                        cell.textContent = req[i];
+                    }
+                } else {
+                    cell.textContent = req[i];
+                }
+                row.appendChild(cell);
+            }
+            tableBody.appendChild(row);
+        });
+    }
+}
+// 按钮事件绑定
+window.onload = function() {
+    document.getElementById("sshSessionsBtn").onclick = fetchSSH_Sessions;
+    document.getElementById("shelLM_SessionsBtn").onclick = fetchShelLM_Sessions;
+    document.getElementById("commandsBtn").onclick = fetchCommands;
+    document.getElementById("answersBtn").onclick = fetchAnswers;
+    document.getElementById("pop3SessionsBtn").onclick = fetchPOP3Sessions;
+    document.getElementById("httpSessionsBtn").onclick = fetchHTTPSessions;
+};

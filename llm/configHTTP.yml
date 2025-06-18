@@ -72,15 +72,10 @@ personality:
         "Whenever you generate response make sure that you did not use latin or lorem ipsum and that your html is not too short, and has colors and links and company name. Be detailed and " +
         "creative and think about it step by step. Check that you put some itemized list in some paragraph, that there is at least 5 medium sized paragraphs, more than 5 colors  etc. " +
         "Make sure you do this every time you output html code. There have to be colors and styles. "
-    final_instr: |
-        ""
-    model: |
-        gpt-3.5-turbo-16k
+    final_instr: ""
+    model: "moonshot-v1-8k"
     temperature: |
         0.0
-    max_tokens: |
-        4000
-    output: |
-        historyHTTP.txt
-    log: |
-        logHTTP.txt
+    max_tokens: 4000
+    output: historyHTTP.txt
+    log: logHTTP.txt
