@@ -18,6 +18,7 @@ from paramiko import ServerInterface, Transport
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import sys
+import struct
 
 # 设置 Kimi API 的基础 URL
 OpenAI.api_base = "https://api.moonshot.cn/v1"
@@ -681,6 +682,8 @@ def main():
             http_identity = yaml.safe_load(f)['personality']
         with open(os.path.join(os.path.dirname(__file__), 'configPOP3.yml'), 'r', encoding='utf-8') as f:
             pop3_identity = yaml.safe_load(f)['personality']
+        with open(os.path.join(os.path.dirname(__file__), 'configMySQL.yml'), 'r', encoding='utf-8') as f:
+            mysql_identity = yaml.safe_load(f)['personality']
         # 设置API密钥
         openai_client = set_key(env_path)
         # 设置各自参数
@@ -690,6 +693,8 @@ def main():
             http_identity, None, None, None, None, None)
         pop3_model, pop3_temp, pop3_max_tokens, pop3_output, pop3_log = set_parameters(
             pop3_identity, None, None, None, None, None)
+        mysql_model, mysql_temp, mysql_max_tokens, mysql_output, mysql_log = set_parameters(
+            mysql_identity, None, None, None, None, None)
         # 启动SSH服务器
         ssh_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ssh_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -797,6 +802,124 @@ def main():
                     print(f"[POP3蜜罐] 主循环异常: {e}")
                     continue
         threading.Thread(target=start_pop3, daemon=True).start()
+        
+        # 启动MySQL服务器（新线程，传递mysql_identity和参数）
+        def start_mysql():
+            import uuid
+            import threading
+            from datetime import datetime
+            import socket
+            import struct
+            logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            mysql_port = int(mysql_identity.get('port', 3309))
+            
+            def handle_mysql_client(client_sock, client_addr):
+                session_uuid = str(uuid.uuid4())
+                session_start_time = datetime.now()
+                timestamp = session_start_time.strftime("%Y-%m-%d_%H-%M-%S")
+                log_file = os.path.join(logs_dir, f"logMySQL_{session_uuid}_{timestamp}.txt")
+                history_file = os.path.join(logs_dir, f"historyMySQL_{session_uuid}_{timestamp}.txt")
+                try:
+                    with open(log_file, 'a', encoding='utf-8') as logf:
+                        logf.write(f"MySQL session start: {session_start_time} from {client_addr[0]}:{client_addr[1]}\n")
+                    with open(history_file, 'a', encoding='utf-8') as histf:
+                        histf.write(f"Session started at: {session_start_time}\n")
+                except Exception as e:
+                    print(f"[MySQL蜜罐] 日志文件创建失败: {e}")
+                
+                messages = [
+                    {"role": "system", "content": mysql_identity['prompt'] + mysql_identity.get('final_instr', '')}
+                ]
+                
+                try:
+                    # 简化的MySQL握手处理
+                    # 直接发送欢迎消息，跳过复杂的握手协议
+                    
+                # MySQL初始欢迎消息
+                welcome_msg = "Welcome to the MySQL monitor.  Commands end with ; or \\g.\n"
+                welcome_msg += "Your MySQL connection id is 12345\n"
+                welcome_msg += "Server version: 8.0.33 MySQL Community Server - GPL\n\n"
+                welcome_msg += "Copyright (c) 2000, 2023, Oracle and/or its affiliates.\n\n"
+                welcome_msg += "Oracle is a registered trademark of Oracle Corporation and/or its\n"
+                welcome_msg += "affiliates. Other names may be trademarks of their respective\n"
+                welcome_msg += "owners.\n\n"
+                welcome_msg += "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n\n"
+                welcome_msg += "mysql> "
+                    
+                    # 发送欢迎消息
+                    client_sock.sendall(welcome_msg.encode())
+                    with open(log_file, 'a', encoding='utf-8') as logf:
+                        logf.write(f"[BANNER] {welcome_msg}\n")
+                    with open(history_file, 'a', encoding='utf-8') as histf:
+                        histf.write(f"{welcome_msg}\n")
+                        
+                except Exception as e:
+                    print(f"[MySQL蜜罐] 握手失败: {e}")
+                    client_sock.close()
+                    return
+                
+                while True:
+                    try:
+                        data = b''
+                        while not data.endswith(b'\n') and not data.endswith(b'\r\n'):
+                            chunk = client_sock.recv(1024)
+                            if not chunk:
+                                raise ConnectionError('客户端断开连接')
+                            data += chunk
+                        command = data.decode(errors='ignore').strip()
+                        if not command:
+                            continue
+                        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        with open(log_file, 'a', encoding='utf-8') as logf:
+                            logf.write(f"[{now}] [CMD] {command}\n")
+                        with open(history_file, 'a', encoding='utf-8') as histf:
+                            histf.write(f"mysql> {command}\n")
+                        messages.append({"role": "user", "content": command})
+                        try:
+                            response = openai_client.chat.completions.create(
+                                model=mysql_model,
+                                messages=messages,
+                                temperature=mysql_temp,
+                                max_tokens=mysql_max_tokens
+                            )
+                            ai_response = response.choices[0].message.content
+                        except Exception as e:
+                            ai_response = f"ERROR 2006 (HY000): MySQL server has gone away: {e}\nmysql> "
+                        with open(log_file, 'a', encoding='utf-8') as logf:
+                            logf.write(f"[{now}] [RESP] {ai_response}\n")
+                        with open(history_file, 'a', encoding='utf-8') as histf:
+                            histf.write(f"{ai_response}\n")
+                        try:
+                            client_sock.sendall(ai_response.encode())
+                        except Exception as e:
+                            print(f"[MySQL蜜罐] 发送响应失败: {e}")
+                            break
+                        if command.lower() in ("quit", "exit", "\\q"):
+                            break
+                    except Exception as e:
+                        print(f"[MySQL蜜罐] 处理命令异常: {e}")
+                        break
+                client_sock.close()
+                with open(log_file, 'a', encoding='utf-8') as logf:
+                    logf.write(f"MySQL session end: {datetime.now()}\n")
+            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock.bind(('0.0.0.0', mysql_port))
+            server_sock.listen(50)
+            print(f"MySQL蜜罐服务启动在端口 {mysql_port}")
+            while True:
+                try:
+                    client_sock, client_addr = server_sock.accept()
+                    print(f"[MySQL蜜罐] 接受连接: {client_addr}")
+                    t = threading.Thread(target=handle_mysql_client, args=(client_sock, client_addr))
+                    t.daemon = True
+                    t.start()
+                except Exception as e:
+                    print(f"[MySQL蜜罐] 主循环异常: {e}")
+                    continue
+        threading.Thread(target=start_mysql, daemon=True).start()
+        
         # 处理SSH连接
         while True:
             client_socket, addr = ssh_server.accept()

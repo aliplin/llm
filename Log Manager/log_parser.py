@@ -188,7 +188,11 @@ def get_latest_attackers_ids(counter):
 
 def parse_historylog(file_path):
     """
-    解析历史日志文件，提取命令和响应
+    解析历史日志文件，提取命令和LLM回应
+    格式分析：
+    - 命令行：root@honeypot:~$ command
+    - LLM回应：命令执行后的输出内容
+    - 退出：quit/exit命令
     """
     commands = []
     answers = []
@@ -199,88 +203,161 @@ def parse_historylog(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
             
-        # 提取命令和响应
+        print(f"解析历史日志文件: {file_path}")
+        print(f"文件内容长度: {len(content)} 字符")
+        
+        # 提取会话开始时间
+        session_start_match = re.search(r'Session started at: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', content)
+        if session_start_match:
+            start_time = session_start_match.group(1)
+            print(f"会话开始时间: {start_time}")
+        
+        # 按行解析内容
+        lines = content.split('\n')
         current_command = None
         current_answer = []
 
-        for line in content.split('\n'):
+        for line_num, line in enumerate(lines):
             line = line.strip()
             if not line:
                 continue
 
-            # 检查是否是命令（包含提示符的行）
+            print(f"行 {line_num+1}: {line}")
+            
+            # 检查是否是命令提示符行（包含@和~$）
             if '@' in line and '~$' in line:
                 # 如果已经有命令在处理，保存它
-                if current_command:
-                    commands.append(current_command)
+                if current_command and current_command.strip():
+                    commands.append(current_command.strip())
                     answers.append('\n'.join(current_answer))
+                    print(f"保存命令: {current_command.strip()}")
+                    print(f"保存答案: {len(current_answer)} 行")
                     current_answer = []
 
                 # 提取新命令
+                # 格式: root@honeypot:~$ ls -l
                 prompt_end = line.find('~$') + 2
+                if prompt_end < len(line):
                 current_command = line[prompt_end:].strip()
+                    print(f"提取新命令: {current_command}")
+                else:
+                    current_command = ""
                 continue
             
-            # 其他行作为当前命令的响应
+            # 检查是否是退出命令
+            elif line == "exit" or line == "quit":
+                if current_command and current_command.strip():
+                    commands.append(current_command.strip())
+                    answers.append('\n'.join(current_answer))
+                    print(f"保存退出命令: {current_command.strip()}")
+                    current_answer = []
+                current_command = None
+                continue
+            
+            # 检查是否是新的提示符（不同格式）
+            elif line.startswith('root@') and ':' in line and line.endswith('~'):
+                # 如果已经有命令在处理，保存它
+                if current_command and current_command.strip():
+                    commands.append(current_command.strip())
+                    answers.append('\n'.join(current_answer))
+                    print(f"保存命令: {current_command.strip()}")
+                    print(f"保存答案: {len(current_answer)} 行")
+                    current_answer = []
+                current_command = None
+                continue
+            
+            # 其他行作为当前命令的LLM回应
             if current_command is not None:
+                # 跳过一些不需要的行
+                if (line.startswith('total') and 'drwx' in line) or \
+                   (line.startswith('drwx') and len(line.split()) >= 9) or \
+                   (line.startswith('-rwx') and len(line.split()) >= 9):
+                    # 这是ls命令的输出，应该作为答案的一部分
+                    current_answer.append(line)
+                elif line.startswith('root@') and '~$' in line:
+                    # 这是新的命令提示符，跳过
+                    continue
+                else:
+                    # 其他所有内容都作为LLM回应
                 current_answer.append(line)
         
         # 处理最后一个命令
-        if current_command:
-            commands.append(current_command)
+        if current_command and current_command.strip():
+            commands.append(current_command.strip())
             answers.append('\n'.join(current_answer))
+            print(f"保存最后一个命令: {current_command.strip()}")
         
-        # 解析时间
-        time_pattern = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})'
-        time_matches = re.findall(time_pattern, content)
-        if len(time_matches) >= 2:
-            start_time = time_matches[0]
-            end_time = time_matches[-1]
+        # 设置结束时间（如果没有明确的结束时间，使用开始时间+5分钟）
+        if start_time and not end_time:
+            try:
+                start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+                end_dt = start_dt + timedelta(minutes=5)
+                end_time = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                end_time = start_time
+        
+        print(f"解析结果: {len(commands)} 个命令, {len(answers)} 个答案")
+        for i, (cmd, ans) in enumerate(zip(commands, answers)):
+            print(f"  命令 {i+1}: {cmd}")
+            print(f"  答案 {i+1}: {ans[:100]}...")
         
         return commands, answers, start_time, end_time
 
     except Exception as e:
         print(f"解析历史日志文件时出错: {e}")
+        import traceback
+        traceback.print_exc()
         return [], [], None, None
 
 
 def insert_into_commands_and_answers(commands, shellm_session_id, answers):
     conn, cursor = connect_to_db()
+    if conn is None:
+        print("数据库连接失败")
+        return
 
     try:
         # Ensure we have a matching number of commands and answers
         if len(commands) != len(answers):
-            raise ValueError("The number of commands and answers must be equal.")
+            print(f"警告: 命令数量({len(commands)})与答案数量({len(answers)})不匹配")
+            # 调整长度，取较小的那个
+            min_len = min(len(commands), len(answers))
+            commands = commands[:min_len]
+            answers = answers[:min_len]
 
-        answer_counter = 0
+        print(f"准备插入 {len(commands)} 个命令和答案")
 
         # Insert each command and its corresponding answer
-        for command in commands:
+        for i, (command, answer) in enumerate(zip(commands, answers)):
+            print(f"插入命令 {i+1}: {command}")
+            
             # Insert command into 'commands' table
             cursor.execute("""
             INSERT INTO commands (shellm_session_id, command)
-            VALUES (?, ?, ?)
+            VALUES (?, ?)
             """, (shellm_session_id, command))
 
             # Fetch the last inserted 'command_id'
-            cursor.execute("""
-            SELECT last_insert_rowid();
-            """)
+            cursor.execute("SELECT last_insert_rowid()")
             command_id = cursor.fetchone()[0]
+            print(f"命令ID: {command_id}")
 
             # Insert answer into 'answers' table
             cursor.execute("""
             INSERT INTO answers (command_id, answer)
             VALUES (?, ?)
-            """, (command_id, answers[answer_counter]))
+            """, (command_id, answer))
 
-            answer_counter += 1
+            print(f"插入答案: {answer[:50]}...")
 
         # Commit the transaction
         conn.commit()
+        print(f"成功插入 {len(commands)} 个命令和答案")
 
     except Exception as e:
         print(f"插入命令和响应时出错: {e}")
+        import traceback
+        traceback.print_exc()
         conn.rollback()
 
     finally:
@@ -349,11 +426,39 @@ def get_logs_from_local():
         for log_file in log_files:
             if 'logSSH_' in log_file:
                 with open(log_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    match = re.search(r'(\w+)\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', content)
-                    if match:
-                        username, timestamp, source_ip = match.groups()
-                        ssh_sessions.append((username, timestamp, source_ip))
+                    content = f.read().strip()
+                    if not content:
+                        continue
+                    
+                    # 解析SSH登录信息格式: username terminal src_ip time_date_start
+                    # 例如: root pts/0 127.0.0.1 Sun Jun 22 09:48:19 2025
+                    lines = content.split('\n')
+                    for line in lines:
+                        if not line.strip():
+                            continue
+                        
+                        parts = line.split()
+                        if len(parts) >= 8:  # 确保有足够的部分
+                            username = parts[0]
+                            terminal = parts[1]
+                            src_ip = parts[2]
+                            # 合并时间和日期部分
+                            time_date_start = " ".join(parts[3:8])
+                            
+                            try:
+                                # 转换时间格式
+                                login_datetime = datetime.strptime(time_date_start, "%a %b %d %H:%M:%S %Y")
+                                time_date_start = login_datetime.strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                # 目标IP和端口
+                                dst_ip = "127.0.0.1"
+                                dst_port = 22
+                                
+                                ssh_sessions.append((username, time_date_start, src_ip, dst_ip, dst_port, log_file))
+                                print(f"解析SSH会话: {username} {time_date_start} {src_ip}")
+                            except ValueError as e:
+                                print(f"时间格式解析错误: {e}, 行: {line}")
+                                continue
         
         if not ssh_sessions:
             print("未找到SSH会话")
@@ -363,57 +468,69 @@ def get_logs_from_local():
         
         # 获取最新的数据库记录时间
         conn, cursor = connect_to_db()
-        cursor.execute("SELECT MAX(timestamp) FROM ssh_sessions")
-        last_db_time = cursor.fetchone()[0]
+        if conn is None:
+            print("数据库连接失败")
+            return
+            
+        cursor.execute("SELECT MAX(time_date) FROM ssh_session")
+        result = cursor.fetchone()
+        last_db_time = result[0] if result and result[0] else None
         cursor.close()
         conn.close()
         
-        if not last_db_time:
-            print("警告: 数据库中无SSH会话记录，视为全部新连接")
-            last_db_time = datetime(1970, 1, 1)
+        print(f"数据库中最新记录时间: {last_db_time}")
         
-        # 过滤新会话
-        new_sessions = []
-        for session in ssh_sessions:
-            session_time = datetime.strptime(session[1], "%Y-%m-%d %H:%M:%S")
-            if session_time > last_db_time:
-                new_sessions.append(session)
+        # 强制重新处理所有会话（临时解决方案）
+        new_sessions = ssh_sessions
+        print(f"强制处理所有 {len(new_sessions)} 个会话")
         
         if new_sessions:
             print(f"检测到 {len(new_sessions)} 个新会话")
             
-            # 插入新会话
-            conn, cursor = connect_to_db()
-            for session in new_sessions:
-                username, timestamp, source_ip = session
-                cursor.execute("""
-                    INSERT INTO ssh_sessions (username, timestamp, source_ip)
-                    VALUES (?, ?, ?)
-                """, (username, timestamp, source_ip))
-            conn.commit()
-            cursor.close()
-            conn.close()
+            # 插入新会话到ssh_session表
+            insert_into_ssh_session([(s[0], s[1], s[2], s[3], s[4]) for s in new_sessions])
+            
+            # 插入攻击者会话
+            insert_into_attacker_session([(s[0], s[1], s[2], s[3], s[4]) for s in new_sessions])
             
             # 获取最新的会话ID
             conn, cursor = connect_to_db()
-            cursor.execute("SELECT id FROM ssh_sessions ORDER BY timestamp DESC LIMIT ?", (len(new_sessions),))
+            cursor.execute("SELECT id FROM ssh_session ORDER BY id DESC LIMIT ?", (len(new_sessions),))
             latest_sessions_ids = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
             
             # 获取最新的攻击者ID
             conn, cursor = connect_to_db()
-            cursor.execute("SELECT id FROM attackers ORDER BY id DESC LIMIT ?", (len(new_sessions),))
+            cursor.execute("SELECT attacker_session_id FROM attacker_session ORDER BY attacker_session_id DESC LIMIT ?", (len(new_sessions),))
             latest_attacker_ids = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
             
+            print(f"最新会话ID: {latest_sessions_ids}")
+            print(f"最新攻击者ID: {latest_attacker_ids}")
+            
             # 处理历史文件
-            for session in new_sessions:
-                username, timestamp, source_ip = session
-                history_file = f'./logs/historySSH_{source_ip}_{timestamp.replace(" ", "_").replace(":", "-")}.txt'
+            for i, session in enumerate(new_sessions):
+                username, timestamp, source_ip, dst_ip, dst_port, log_file = session
+                print(f"处理会话 {i+1}: {username} {timestamp} {source_ip}")
                 
-                if os.path.exists(history_file):
+                # 从日志文件名中提取UUID
+                filename = os.path.basename(log_file)
+                uuid_match = re.search(r'logSSH_([a-f0-9-]+)_', filename)
+                if uuid_match:
+                    uuid = uuid_match.group(1)
+                    print(f"提取UUID: {uuid}")
+                    
+                    # 查找对应的history文件
+                    history_files = glob.glob(f'./logs/historySSH_{uuid}_*.txt')
+                    print(f"查找历史文件模式: historySSH_{uuid}_*.txt")
+                    print(f"找到历史文件: {history_files}")
+                    
+                    if history_files:
+                        history_file = history_files[0]  # 取第一个匹配的文件
+                        print(f"使用历史文件: {history_file}")
+                        
                     commands, answers, start_time, end_time = parse_historylog(history_file)
                     
                     if not end_time and start_time:
@@ -424,20 +541,37 @@ def get_logs_from_local():
             if start_time and end_time:
                 start_time = format_datetime_for_db(start_time)
                 end_time = format_datetime_for_db(end_time)
-                insert_into_shellm_session(start_time, end_time, latest_sessions_ids, latest_attacker_ids)
+                            
+                            # 使用对应的会话ID
+                            if i < len(latest_sessions_ids):
+                                session_ids = [latest_sessions_ids[i]]
+                                attacker_ids = [latest_attacker_ids[i]] if i < len(latest_attacker_ids) else []
+                                
+                                print(f"插入shellm_session: start={start_time}, end={end_time}")
+                                insert_into_shellm_session(start_time, end_time, session_ids, attacker_ids)
                 shellm_session_id = get_latest_shellm_session()
+                                
             if shellm_session_id and shellm_session_id[0]:
+                                    print(f"插入命令和答案到shellm_session_id: {shellm_session_id[0]}")
                 insert_into_commands_and_answers(commands, shellm_session_id[0], answers)
                 print(f"已插入 {len(commands)} 条命令记录")
-
-                        # 更新ID列表
-                latest_sessions_ids = latest_sessions_ids[1:]
-                latest_attacker_ids = latest_attacker_ids[1:]
+                                else:
+                                    print("获取shellm_session_id失败")
+                            else:
+                                print(f"会话索引 {i} 超出范围")
+                        else:
+                            print("时间解析失败")
+                    else:
+                        print(f"未找到对应的历史文件")
+                else:
+                    print(f"无法从文件名提取UUID: {filename}")
             else:
                 print("没有新的会话需要处理")
             
     except Exception as e:
         print(f"处理日志文件时出错: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def parse_ssh_logs(logs_dir):
@@ -453,28 +587,37 @@ def parse_ssh_logs(logs_dir):
     
     for log_file in log_files:
         try:
-            # 从文件名中提取日期
+            # 从文件名中提取UUID和时间信息
             filename = os.path.basename(log_file)
-            match = re.match(r'logSSH_(\d{4}-\d{2}-\d{2})\.txt', filename)
+            # 匹配格式: logSSH_uuid_YYYY-MM-DD_HH-MM-SS.txt
+            match = re.match(r'logSSH_([a-f0-9-]+)_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.txt', filename)
             if not match:
+                print(f"无法解析文件名格式: {filename}")
                 continue
                 
-            date_str = match.groups()[0]
+            uuid, date_str, time_str = match.groups()
             
             # 读取日志文件内容
             with open(log_file, 'r', encoding='utf-8') as f:
                 log_content = f.read().strip()
+            
+            if not log_content:
+                continue
             
             # 按行解析登录信息
             for line in log_content.split('\n'):
                 if not line.strip():
                     continue
                     
-                # 解析登录信息
-                # 格式: username terminal src_ip time_date_start
-                login_match = re.match(r'(\S+)\s+(\S+)\s+(\S+)\s+(.+)', line)
-                if login_match:
-                    username, terminal, src_ip, login_time = login_match.groups()
+                # 解析登录信息格式: username terminal src_ip time_date_start
+                # 例如: root pts/0 127.0.0.1 Sun Jun 22 09:48:19 2025
+                parts = line.split()
+                if len(parts) >= 8:  # 确保有足够的部分
+                    username = parts[0]
+                    terminal = parts[1]
+                    src_ip = parts[2]
+                    # 合并时间和日期部分
+                    login_time = " ".join(parts[3:8])
                     
                     # 转换时间格式
                     try:
@@ -487,33 +630,47 @@ def parse_ssh_logs(logs_dir):
                         time_date_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
                     # 查找对应的history文件
-                    history_file = os.path.join(logs_dir, f"historySSH_{date_str}.txt")
+                    history_file = os.path.join(logs_dir, f"historySSH_{uuid}_{date_str}_{time_str}.txt")
+                    commands = []
+                    
                     if os.path.exists(history_file):
                         with open(history_file, 'r', encoding='utf-8') as f:
                             history_content = f.read()
                         
                         # 解析命令历史
-                        commands = []
                         for cmd_line in history_content.split('\n'):
-                            if cmd_line.strip() and not cmd_line.startswith('$'):
-                                commands.append(cmd_line.strip())
+                            cmd_line = cmd_line.strip()
+                            if cmd_line and not cmd_line.startswith('$') and not cmd_line.startswith('Session started at:'):
+                                # 提取实际的命令（去除提示符）
+                                if 'root@' in cmd_line and '$' in cmd_line:
+                                    # 跳过包含提示符的行
+                                    continue
+                                elif cmd_line.startswith('total') or cmd_line.startswith('drwx') or cmd_line.startswith('-rwx'):
+                                    # 跳过ls命令的输出
+                                    continue
+                                else:
+                                    commands.append(cmd_line)
                         
                         parsed_logs.append({
-                            'session_id': f"{date_str}_{len(parsed_logs)}",  # 使用日期和序号作为会话ID
+                        'session_id': f"{uuid}_{date_str}_{time_str}",
                             'username': username,
                             'terminal': terminal,
                             'src_ip': src_ip,
-                            'login_time': time_date_start,  # 使用转换后的时间格式
+                        'login_time': time_date_start,
                             'commands': commands
                         })
+                    
             print(f"\n[SSH会话] 日志文件: {log_file}")
             print(f"  用户名: {username}  终端: {terminal}  源IP: {src_ip}")
             print(f"  登录时间: {time_date_start}")
             print(f"  命令数: {len(commands)}")
             for cmd in commands:
                 print(f"    CMD: {cmd}")
+                        
         except Exception as e:
             print(f"解析日志文件 {log_file} 时出错: {e}")
+            import traceback
+            traceback.print_exc()
             continue
     
     return parsed_logs

@@ -1,211 +1,309 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log Manager Dashboard</title>
-    <link rel="stylesheet" href="../static/style.css">
+    <title>网络安全日志分析仪表板</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <h1>Log Manager Dashboard</h1>
+    <div class="dashboard-container">
+        <!-- 顶部导航栏 -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="fas fa-shield-alt"></i> 网络安全日志分析仪表板</h1>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-users"></i>
+                        <span id="total-sessions">0</span>
+                        <label>总会话数</label>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="total-attacks">0</span>
+                        <label>攻击事件</label>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-clock"></i>
+                        <span id="last-update">--</span>
+                        <label>最后更新</label>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-    <br>
-    <br>
+        <!-- 主要内容区域 -->
+        <main class="dashboard-main">
+            <!-- 左侧控制面板 -->
+            <aside class="control-panel">
+                <div class="panel-section">
+                    <h3><i class="fas fa-cogs"></i> 数据控制</h3>
+                    <div class="control-buttons">
+                        <button id="refreshBtn" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> 刷新数据
+                        </button>
+                        <button id="exportBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> 导出报告
+                        </button>
+                    </div>
+                </div>
 
-    <!-- Container for buttons -->
-    <div class="button-container">
-        <button id="sshSessionsBtn">SSH Sessions</button>
-        <button id="shelLM_SessionsBtn">shelLM Sessions</button>
-        <button id="commandsBtn">Commands</button>
-        <button id="answersBtn">Answers</button>
-        <button id="pop3SessionsBtn">POP3 Sessions</button>
-        <button id="httpSessionsBtn">HTTP Sessions</button>
-        <button id="mysqlSessionsBtn">MySQL Sessions</button>
+                <div class="panel-section">
+                    <h3><i class="fas fa-filter"></i> 服务筛选</h3>
+                    <div class="service-filters">
+                        <button id="sshSessionsBtn" class="service-btn active">
+                            <i class="fas fa-terminal"></i> SSH
+                        </button>
+                        <button id="httpSessionsBtn" class="service-btn">
+                            <i class="fas fa-globe"></i> HTTP
+                        </button>
+                        <button id="mysqlSessionsBtn" class="service-btn">
+                            <i class="fas fa-database"></i> MySQL
+                        </button>
+                        <button id="pop3SessionsBtn" class="service-btn">
+                            <i class="fas fa-envelope"></i> POP3
+                        </button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3><i class="fas fa-chart-line"></i> 时间范围</h3>
+                    <div class="time-filters">
+                        <select id="timeRange" class="form-select">
+                            <option value="1">最近1小时</option>
+                            <option value="24" selected>最近24小时</option>
+                            <option value="168">最近7天</option>
+                            <option value="720">最近30天</option>
+                        </select>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 右侧内容区域 -->
+            <div class="content-area">
+                <!-- 概览卡片 -->
+                <section class="overview-cards">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-users"></i>
+                            <h4>活跃会话</h4>
+                        </div>
+                        <div class="card-content">
+                            <div class="metric">
+                                <span id="active-sessions">0</span>
+                                <label>当前活跃</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <h4>地理位置</h4>
+                        </div>
+                        <div class="card-content">
+                            <div class="metric">
+                                <span id="unique-ips">0</span>
+                                <label>唯一IP</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-bar"></i>
+                            <h4>请求频率</h4>
+                        </div>
+                        <div class="card-content">
+                            <div class="metric">
+                                <span id="request-rate">0</span>
+                                <label>请求/分钟</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h4>威胁等级</h4>
+                        </div>
+                        <div class="card-content">
+                            <div class="metric">
+                                <span id="threat-level">低</span>
+                                <label>当前等级</label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 图表区域 -->
+                <section class="charts-section">
+                    <div class="chart-container">
+                        <div class="chart-card">
+                            <h3><i class="fas fa-chart-line"></i> 会话趋势</h3>
+                            <canvas id="sessionsTrendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-card">
+                            <h3><i class="fas fa-chart-pie"></i> 服务分布</h3>
+                            <canvas id="serviceDistributionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-card">
+                            <h3><i class="fas fa-chart-bar"></i> 攻击类型统计</h3>
+                            <canvas id="attackTypesChart"></canvas>
+                        </div>
     </div>
 
-    <br>
+                    <div class="chart-container">
+                        <div class="chart-card">
+                            <h3><i class="fas fa-globe"></i> 地理分布</h3>
+                            <div id="geoDistributionChart" style="height: 300px;"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 实时日志流 -->
+                <section class="realtime-section">
+                    <div class="log-card">
+                        <h3><i class="fas fa-stream"></i> 实时日志流</h3>
+                        <div class="log-filters">
+                            <button class="log-filter active" data-level="all">全部</button>
+                            <button class="log-filter" data-level="info">信息</button>
+                            <button class="log-filter" data-level="warning">警告</button>
+                            <button class="log-filter" data-level="error">错误</button>
+                        </div>
+                        <div id="realtimeLogs" class="log-container">
+                            <!-- 实时日志内容 -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 详细数据表格 -->
+                <section class="data-section">
+                    <div class="table-card">
+                        <h3><i class="fas fa-table"></i> 详细数据</h3>
+                        <div class="table-controls">
+                            <input type="text" id="searchInput" placeholder="搜索..." class="search-input">
+                            <select id="tableFilter" class="table-filter">
+                                <option value="all">全部数据</option>
+                                <option value="ssh">SSH会话</option>
+                                <option value="http">HTTP请求</option>
+                                <option value="mysql">MySQL命令</option>
+                                <option value="pop3">POP3会话</option>
+                            </select>
+                        </div>
 
     <!-- SSH Sessions Table -->
-    <table id="ssh-sessions-table" style="display:none;">
+                        <table id="ssh-sessions-table" class="data-table" style="display:none;">
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Time & Date</th>
-                <th>Source IP</th>
-                <th>Destination IP</th>
-                <th>Destination Port</th>
+                                    <th>用户名</th>
+                                    <th>时间</th>
+                                    <th>源IP</th>
+                                    <th>目标IP</th>
+                                    <th>端口</th>
+                                    <th>操作</th>
             </tr>
         </thead>
         <tbody id="ssh-sessions-table-body">
-            <!-- Rows will be added here -->
-        </tbody>
-    </table>
-
-    <!-- shelLM Sessions Table -->
-    <table id="shellm-sessions-table" style="display:none;">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>ssh_session_id</th>
-                <th>model</th>
-                <th>start_time</th>
-                <th>end_time</th>
-                <th>attacker_id</th>
-            </tr>
-        </thead>
-        <tbody id="shellm-sessions-table-body">
-            <!-- Rows will be added here -->
-        </tbody>
-    </table>
-
-    <!-- Placeholder for the commands and answers table -->
-    <table id="commands-answers-table" style="display: none; margin-top: 20px;">
-        <thead>
-            <tr>
-                <th>command_id</th>
-                <th>Command</th>
-                <th>answer_id</th>
-                <th>Answer</th>
-            </tr>
-        </thead>
-        <tbody id="commands-answers-table-body">
-            <!-- Rows will be added dynamically -->
-        </tbody>
-    </table>
-
-    <!-- Commands Table -->
-    <table id="commands-table" style="display:none;">
-        <thead>
-            <tr>
-                <th>command_id</th>
-                <th>shellm_session_id</th>
-                <th>Command</th>
-            </tr>
-        </thead>
-        <tbody id="commands-table-body">
-            <!-- Rows will be added here -->
-        </tbody>
-    </table>
-
-    <!-- Answers Table -->
-    <table id="answers-table" style="display:none;">
-        <thead>
-            <tr>
-                <th>answer_id</th>
-                <th>command_id</th>
-                <th>answer</th>
-            </tr>
-        </thead>
-        <tbody id="answers-table-body">
-            <!-- Rows will be added here -->
-        </tbody>
-    </table>
-
-    <!-- POP3 Sessions Table -->
-    <table id="pop3-sessions-table" style="display:none;">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Username</th>
-                <th>Time & Date</th>
-                <th>Source IP</th>
-                <th>Destination IP</th>
-                <th>Source Port</th>
-                <th>Destination Port</th>
-            </tr>
-        </thead>
-        <tbody id="pop3-sessions-table-body">
-            <!-- Rows will be added here -->
-        </tbody>
-    </table>
-
-    <!-- POP3 Commands Table -->
-    <table id="pop3-commands-table" style="display:none;">
-        <thead>
-            <tr>
-                <th>command_id</th>
-                <th>pop3_session_id</th>
-                <th>Command</th>
-                <th>Response</th>
-                <th>Timestamp</th>
-            </tr>
-        </thead>
-        <tbody id="pop3-commands-table-body">
-            <!-- Rows will be added here -->
         </tbody>
     </table>
 
     <!-- HTTP Sessions Table -->
-    <table id="http-sessions-table" style="display:none;">
+                        <table id="http-sessions-table" class="data-table" style="display:none;">
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Client IP</th>
-                <th>Start Time</th>
-                <th>End Time</th>
+                                    <th>客户端IP</th>
+                                    <th>开始时间</th>
+                                    <th>结束时间</th>
+                                    <th>请求数</th>
+                                    <th>操作</th>
             </tr>
         </thead>
         <tbody id="http-sessions-table-body">
-            <!-- Rows will be added here -->
         </tbody>
     </table>
 
     <!-- HTTP Requests Table -->
-    <table id="http-requests-table" style="display:none;">
+                        <table id="http-requests-table" class="data-table" style="display:none;">
         <thead>
             <tr>
-                <th>request_id</th>
-                <th>http_session_id</th>
-                <th>Method</th>
-                <th>Path</th>
-                <th>Headers</th>
-                <th>Request Time</th>
-                <th>Response</th>
+                                    <th>请求ID</th>
+                                    <th>会话ID</th>
+                                    <th>方法</th>
+                                    <th>路径</th>
+                                    <th>时间</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
             </tr>
         </thead>
         <tbody id="http-requests-table-body">
-            <!-- Rows will be added here -->
         </tbody>
     </table>
 
     <!-- MySQL Sessions Table -->
-    <table id="mysql-sessions-table" style="display:none;">
+                        <table id="mysql-sessions-table" class="data-table" style="display:none;">
         <thead>
             <tr>
                 <th>ID</th>
-                <th>Username</th>
-                <th>Time & Date</th>
-                <th>Source IP</th>
-                <th>Destination IP</th>
-                <th>Source Port</th>
-                <th>Destination Port</th>
-                <th>Database Name</th>
+                                    <th>用户名</th>
+                                    <th>时间</th>
+                                    <th>源IP</th>
+                                    <th>数据库</th>
+                                    <th>命令数</th>
+                                    <th>操作</th>
             </tr>
         </thead>
         <tbody id="mysql-sessions-table-body">
-            <!-- Rows will be added here -->
         </tbody>
     </table>
 
-    <!-- MySQL Commands Table -->
-    <table id="mysql-commands-table" style="display:none;">
+                        <!-- POP3 Sessions Table -->
+                        <table id="pop3-sessions-table" class="data-table" style="display:none;">
         <thead>
             <tr>
-                <th>command_id</th>
-                <th>mysql_session_id</th>
-                <th>Command</th>
-                <th>Response</th>
-                <th>Timestamp</th>
-                <th>Command Type</th>
-                <th>Affected Rows</th>
+                                    <th>ID</th>
+                                    <th>用户名</th>
+                                    <th>时间</th>
+                                    <th>源IP</th>
+                                    <th>命令数</th>
+                                    <th>操作</th>
             </tr>
         </thead>
-        <tbody id="mysql-commands-table-body">
-            <!-- Rows will be added here -->
+                            <tbody id="pop3-sessions-table-body">
         </tbody>
     </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
 
-    <script src="../static/script.js"></script>
+    <!-- 模态框 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">详细信息</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 详细信息内容 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义脚本 -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='debug_data.js') }}"></script>
 </body>
 </html>
