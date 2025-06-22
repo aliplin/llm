@@ -836,16 +836,16 @@ def main():
                     # 简化的MySQL握手处理
                     # 直接发送欢迎消息，跳过复杂的握手协议
                     
-                # MySQL初始欢迎消息
-                welcome_msg = "Welcome to the MySQL monitor.  Commands end with ; or \\g.\n"
-                welcome_msg += "Your MySQL connection id is 12345\n"
-                welcome_msg += "Server version: 8.0.33 MySQL Community Server - GPL\n\n"
-                welcome_msg += "Copyright (c) 2000, 2023, Oracle and/or its affiliates.\n\n"
-                welcome_msg += "Oracle is a registered trademark of Oracle Corporation and/or its\n"
-                welcome_msg += "affiliates. Other names may be trademarks of their respective\n"
-                welcome_msg += "owners.\n\n"
-                welcome_msg += "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n\n"
-                welcome_msg += "mysql> "
+                    # MySQL初始欢迎消息
+                    welcome_msg = "Welcome to the MySQL monitor.  Commands end with ; or \\g.\n"
+                    welcome_msg += "Your MySQL connection id is 12345\n"
+                    welcome_msg += "Server version: 8.0.33 MySQL Community Server - GPL\n\n"
+                    welcome_msg += "Copyright (c) 2000, 2023, Oracle and/or its affiliates.\n\n"
+                    welcome_msg += "Oracle is a registered trademark of Oracle Corporation and/or its\n"
+                    welcome_msg += "affiliates. Other names may be trademarks of their respective\n"
+                    welcome_msg += "owners.\n\n"
+                    welcome_msg += "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n\n"
+                    welcome_msg += "mysql> "
                     
                     # 发送欢迎消息
                     client_sock.sendall(welcome_msg.encode())

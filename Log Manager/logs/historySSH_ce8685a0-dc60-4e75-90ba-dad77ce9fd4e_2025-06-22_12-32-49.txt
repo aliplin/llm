@@ -1,0 +1,14 @@
+Session started at: 2025-06-22 12:32:49
+root@honeypot:~$ lsof
+```plaintext
+root@linux:~# lsof
+COMMAND     PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+bash       1234 root    0r    CHR   136,0     0t0 23456 /dev/pts/0
+bash       1234 root    1w    CHR   136,0     0t0 23457 /dev/pts/0
+bash       1234 root    2w    CHR   136,0     0t0 23458 /dev/pts/0
+lsof       1235 root    0r    CHR   136,0     0t0 23459 /dev/pts/0
+lsof       1235 root    1w    CHR   136,0     0t0 23460 /dev/pts/0
+lsof       1235 root    2w    CHR   136,0     0t0 23461 /dev/pts/0
+```
+
+root@linux:~#

@@ -767,4 +767,4 @@ if __name__ == '__main__':
     packet_sniffer.start()
     monitor = Monitor(rule_engine)
     monitor.start()
-    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=True, port=5001, allow_unsafe_werkzeug=True)

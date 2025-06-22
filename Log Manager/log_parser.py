@@ -238,7 +238,7 @@ def parse_historylog(file_path):
                 # 格式: root@honeypot:~$ ls -l
                 prompt_end = line.find('~$') + 2
                 if prompt_end < len(line):
-                current_command = line[prompt_end:].strip()
+                    current_command = line[prompt_end:].strip()
                     print(f"提取新命令: {current_command}")
                 else:
                     current_command = ""
@@ -279,7 +279,7 @@ def parse_historylog(file_path):
                     continue
                 else:
                     # 其他所有内容都作为LLM回应
-                current_answer.append(line)
+                    current_answer.append(line)
         
         # 处理最后一个命令
         if current_command and current_command.strip():
@@ -541,32 +541,28 @@ def get_logs_from_local():
             if start_time and end_time:
                 start_time = format_datetime_for_db(start_time)
                 end_time = format_datetime_for_db(end_time)
-                            
-                            # 使用对应的会话ID
-                            if i < len(latest_sessions_ids):
-                                session_ids = [latest_sessions_ids[i]]
-                                attacker_ids = [latest_attacker_ids[i]] if i < len(latest_attacker_ids) else []
-                                
-                                print(f"插入shellm_session: start={start_time}, end={end_time}")
-                                insert_into_shellm_session(start_time, end_time, session_ids, attacker_ids)
-                shellm_session_id = get_latest_shellm_session()
-                                
-            if shellm_session_id and shellm_session_id[0]:
-                                    print(f"插入命令和答案到shellm_session_id: {shellm_session_id[0]}")
-                insert_into_commands_and_answers(commands, shellm_session_id[0], answers)
-                print(f"已插入 {len(commands)} 条命令记录")
-                                else:
-                                    print("获取shellm_session_id失败")
-                            else:
-                                print(f"会话索引 {i} 超出范围")
-                        else:
-                            print("时间解析失败")
+                
+                # 使用对应的会话ID
+                if i < len(latest_sessions_ids):
+                    session_ids = [latest_sessions_ids[i]]
+                    attacker_ids = [latest_attacker_ids[i]] if i < len(latest_attacker_ids) else []
+                    
+                    print(f"插入shellm_session: start={start_time}, end={end_time}")
+                    insert_into_shellm_session(start_time, end_time, session_ids, attacker_ids)
+                    shellm_session_id = get_latest_shellm_session()
+                    
+                    if shellm_session_id and shellm_session_id[0]:
+                        print(f"插入命令和答案到shellm_session_id: {shellm_session_id[0]}")
+                        insert_into_commands_and_answers(commands, shellm_session_id[0], answers)
+                        print(f"已插入 {len(commands)} 条命令记录")
                     else:
-                        print(f"未找到对应的历史文件")
+                        print("获取shellm_session_id失败")
                 else:
-                    print(f"无法从文件名提取UUID: {filename}")
+                    print(f"会话索引 {i} 超出范围")
             else:
-                print("没有新的会话需要处理")
+                print("时间解析失败")
+        else:
+            print("没有新的会话需要处理")
             
     except Exception as e:
         print(f"处理日志文件时出错: {e}")
