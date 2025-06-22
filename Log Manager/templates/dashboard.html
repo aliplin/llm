@@ -20,6 +20,7 @@
         <button id="answersBtn">Answers</button>
         <button id="pop3SessionsBtn">POP3 Sessions</button>
         <button id="httpSessionsBtn">HTTP Sessions</button>
+        <button id="mysqlSessionsBtn">MySQL Sessions</button>
     </div>
 
     <br>
@@ -164,6 +165,43 @@
             </tr>
         </thead>
         <tbody id="http-requests-table-body">
+            <!-- Rows will be added here -->
+        </tbody>
+    </table>
+
+    <!-- MySQL Sessions Table -->
+    <table id="mysql-sessions-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Time & Date</th>
+                <th>Source IP</th>
+                <th>Destination IP</th>
+                <th>Source Port</th>
+                <th>Destination Port</th>
+                <th>Database Name</th>
+            </tr>
+        </thead>
+        <tbody id="mysql-sessions-table-body">
+            <!-- Rows will be added here -->
+        </tbody>
+    </table>
+
+    <!-- MySQL Commands Table -->
+    <table id="mysql-commands-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>command_id</th>
+                <th>mysql_session_id</th>
+                <th>Command</th>
+                <th>Response</th>
+                <th>Timestamp</th>
+                <th>Command Type</th>
+                <th>Affected Rows</th>
+            </tr>
+        </thead>
+        <tbody id="mysql-commands-table-body">
             <!-- Rows will be added here -->
         </tbody>
     </table>

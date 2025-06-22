@@ -1,5 +1,5 @@
 import os
-import mysql.connector
+import sqlite3
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import re
@@ -8,9 +8,8 @@ import glob
 # Load environment variables from .env file
 load_dotenv('db_credentials.env')
 
-MYSQL_USER = os.getenv('MYSQL_USER')
-MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
-MYSQL_HOST = os.getenv('MYSQL_HOST')
+DB_TYPE = os.getenv('DB_TYPE', 'sqlite')
+DB_PATH = os.getenv('DB_PATH', 'shellm_sessions.db')
 
 
 def parse_last_output(last_output):
@@ -59,49 +58,42 @@ def parse_last_output(last_output):
 
 
 def connect_to_db():
-    # Connect to the MySQL server
-    conn = mysql.connector.connect(
-        host=MYSQL_HOST,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        database='shellm_sessions'
-    )
-    cursor = conn.cursor()
-
-    return conn, cursor
+    """连接到SQLite数据库"""
+    try:
+        db_file_path = os.path.join(os.path.dirname(__file__), DB_PATH)
+        conn = sqlite3.connect(db_file_path)
+        return conn, conn.cursor()
+    except Exception as e:
+        print(f"数据库连接失败: {e}")
+        return None, None
 
 
-# Function to insert data into MySQL
+# Function to insert data into SQLite
 def insert_into_ssh_session(data):
     conn, cursor = connect_to_db()
-
-    # Insert data into ssh_session table
     for session in data:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO ssh_session (username, time_date, src_ip, dst_ip, dst_port)
-            VALUES (%s, %s, %s, %s, %s)
-        """, session)
-
-    # Commit and close
+            VALUES (?, ?, ?, ?, ?)
+            """, session
+        )
     conn.commit()
     cursor.close()
     conn.close()
 
 
-# Function to insert data into MySQL
+# Function to insert data into SQLite
 def insert_into_attacker_session(data):
     conn, cursor = connect_to_db()
-
-    # Insert data into attacker_session table
     for session in data:
         src_ip = session[2]
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO attacker_session (src_ip)
-            VALUES (%s)
-        """, (src_ip,))
-
-
-    # Commit and close
+            VALUES (?)
+            """, (src_ip,)
+        )
     conn.commit()
     cursor.close()
     conn.close()
@@ -115,9 +107,7 @@ def count_newest(data):
     :return: 新会话数量
     """
     conn, cursor = connect_to_db()
-    cursor.execute("""
-        SELECT time_date FROM ssh_session ORDER BY id DESC LIMIT 1;
-    """)
+    cursor.execute("SELECT time_date FROM ssh_session ORDER BY id DESC LIMIT 1;")
     latest_entry = cursor.fetchone()
 
     # 处理数据库无记录的情况
@@ -180,9 +170,7 @@ def get_latest_sessions_ids(counter):
     ids = []
 
     conn, cursor = connect_to_db()
-    cursor.execute("""
-                    SELECT id FROM ssh_session ORDER BY id DESC LIMIT %s;
-                """, (counter,))
+    cursor.execute("SELECT id FROM ssh_session ORDER BY id DESC LIMIT ?;", (counter,))
     ids = [row[0] for row in cursor.fetchall()]
 
     return ids
@@ -192,9 +180,7 @@ def get_latest_attackers_ids(counter):
     ids = []
 
     conn, cursor = connect_to_db()
-    cursor.execute("""
-                    SELECT attacker_session_id FROM attacker_session ORDER BY attacker_session_id DESC LIMIT %s;
-                """, (counter,))
+    cursor.execute("SELECT attacker_session_id FROM attacker_session ORDER BY attacker_session_id DESC LIMIT ?;", (counter,))
     ids = [row[0] for row in cursor.fetchall()]
 
     return ids
@@ -273,19 +259,19 @@ def insert_into_commands_and_answers(commands, shellm_session_id, answers):
             # Insert command into 'commands' table
             cursor.execute("""
             INSERT INTO commands (shellm_session_id, command)
-            VALUES (%s, %s)
+            VALUES (?, ?, ?)
             """, (shellm_session_id, command))
 
             # Fetch the last inserted 'command_id'
             cursor.execute("""
-            SELECT LAST_INSERT_ID();
+            SELECT last_insert_rowid();
             """)
             command_id = cursor.fetchone()[0]
 
             # Insert answer into 'answers' table
             cursor.execute("""
             INSERT INTO answers (command_id, answer)
-            VALUES (%s, %s)
+            VALUES (?, ?)
             """, (command_id, answers[answer_counter]))
 
             answer_counter += 1
@@ -310,7 +296,7 @@ def insert_into_shellm_session(start_time, end_time, latest_session_ids, latest_
 
     cursor.execute("""
         INSERT INTO shellm_session (ssh_session_id, model, start_time, end_time, attacker_id)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?)
             """, (ssh_session_id, "moonshot-v1-8k", start_time, end_time, latest_attacker_id))
 
     conn.commit()
@@ -402,7 +388,7 @@ def get_logs_from_local():
                 username, timestamp, source_ip = session
                 cursor.execute("""
                     INSERT INTO ssh_sessions (username, timestamp, source_ip)
-                    VALUES (%s, %s, %s)
+                    VALUES (?, ?, ?)
                 """, (username, timestamp, source_ip))
             conn.commit()
             cursor.close()
@@ -410,14 +396,14 @@ def get_logs_from_local():
             
             # 获取最新的会话ID
             conn, cursor = connect_to_db()
-            cursor.execute("SELECT id FROM ssh_sessions ORDER BY timestamp DESC LIMIT %s", (len(new_sessions),))
+            cursor.execute("SELECT id FROM ssh_sessions ORDER BY timestamp DESC LIMIT ?", (len(new_sessions),))
             latest_sessions_ids = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
             
             # 获取最新的攻击者ID
             conn, cursor = connect_to_db()
-            cursor.execute("SELECT id FROM attackers ORDER BY id DESC LIMIT %s", (len(new_sessions),))
+            cursor.execute("SELECT id FROM attackers ORDER BY id DESC LIMIT ?", (len(new_sessions),))
             latest_attacker_ids = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
@@ -694,10 +680,10 @@ def parse_pop3_logs(logs_dir):
                 conn, cursor = connect_to_db()
                 cursor.execute("""
                     INSERT INTO pop3_session (username, time_date, src_ip, dst_ip, src_port, dst_port)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 """, (username or 'unknown', session_start_time, src_ip, dst_ip, src_port, dst_port))
                 conn.commit()
-                cursor.execute("SELECT LAST_INSERT_ID();")
+                cursor.execute("SELECT last_insert_rowid();")
                 pop3_session_id = cursor.fetchone()[0]
                 # 插入命令与响应
                 for i, cmd in enumerate(commands):
@@ -705,7 +691,7 @@ def parse_pop3_logs(logs_dir):
                     ts = timestamps[i] if i < len(timestamps) else session_start_time
                     cursor.execute("""
                         INSERT INTO pop3_command (pop3_session_id, command, response, timestamp)
-                        VALUES (%s, %s, %s, %s)
+                        VALUES (?, ?, ?, ?)
                     """, (pop3_session_id, cmd, resp, ts))
                 conn.commit()
                 cursor.close()
@@ -762,10 +748,10 @@ def parse_http_logs(logs_dir):
                 conn, cursor = connect_to_db()
                 cursor.execute("""
                     INSERT INTO http_session (client_ip, start_time, end_time)
-                    VALUES (%s, %s, %s)
+                    VALUES (?, ?, ?)
                 """, (client_ip, session_start, session_end))
                 conn.commit()
-                cursor.execute("SELECT LAST_INSERT_ID();")
+                cursor.execute("SELECT last_insert_rowid();")
                 http_session_id = cursor.fetchone()[0]
                 # 插入请求与响应
                 for i, req in enumerate(requests):
@@ -773,7 +759,7 @@ def parse_http_logs(logs_dir):
                     ts = request_times[i] if i < len(request_times) else session_start
                     cursor.execute("""
                         INSERT INTO http_request (http_session_id, method, path, headers, request_time, response)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     """, (http_session_id, req.get('method', ''), req.get('path', ''), json.dumps(req.get('headers', {})), ts, resp))
                 conn.commit()
                 cursor.close()
@@ -783,8 +769,166 @@ def parse_http_logs(logs_dir):
             print(f"解析HTTP日志 {log_file} 时出错: {e}")
 
 
+def parse_mysql_logs(logs_dir):
+    """
+    解析MySQL日志文件并写入数据库
+    :param logs_dir: 日志目录路径
+    """
+    import glob
+    import re
+    import json
+    from datetime import datetime
+    log_files = glob.glob(os.path.join(logs_dir, "logMySQL_*.txt"))
+    for log_file in log_files:
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            session_start, session_end = None, None
+            src_ip, dst_ip, src_port, dst_port, username = '', '', None, None, ''
+            database_name = ''
+            commands = []
+            responses = []
+            timestamps = []
+            command_types = []
+            affected_rows = []
+            session_start_time = None
+            
+            for line in lines:
+                if line.startswith('MySQL session start:'):
+                    session_start = re.search(r'start: (.*?) from ([\d\.]+):(\d+)', line)
+                    if session_start:
+                        session_start_time = session_start.group(1).strip()
+                        src_ip = session_start.group(2)
+                        src_port = int(session_start.group(3))
+                        dst_ip = '127.0.0.1'
+                        dst_port = 3306
+                elif line.startswith('MySQL session end:'):
+                    session_end = line.strip().split('end:')[-1].strip()
+                elif '[CMD]' in line:
+                    m = re.match(r'\[(.*?)\] \[CMD\] (.*)', line)
+                    if m:
+                        timestamps.append(m.group(1))
+                        cmd = m.group(2)
+                        commands.append(cmd)
+                        
+                        # 解析命令类型
+                        cmd_upper = cmd.upper().strip()
+                        if cmd_upper.startswith('SELECT'):
+                            command_types.append('SELECT')
+                        elif cmd_upper.startswith('INSERT'):
+                            command_types.append('INSERT')
+                        elif cmd_upper.startswith('UPDATE'):
+                            command_types.append('UPDATE')
+                        elif cmd_upper.startswith('DELETE'):
+                            command_types.append('DELETE')
+                        elif cmd_upper.startswith('CREATE'):
+                            command_types.append('CREATE')
+                        elif cmd_upper.startswith('DROP'):
+                            command_types.append('DROP')
+                        elif cmd_upper.startswith('USE'):
+                            command_types.append('USE')
+                            # 提取数据库名
+                            use_match = re.match(r'USE\s+(\w+)', cmd_upper)
+                            if use_match:
+                                database_name = use_match.group(1)
+                        elif cmd_upper.startswith('SHOW'):
+                            command_types.append('SHOW')
+                        else:
+                            command_types.append('OTHER')
+                        
+                        # 设置用户名（通常在连接时设置）
+                        if not username and ('root' in cmd.lower() or 'user' in cmd.lower()):
+                            user_match = re.search(r'(\w+)@', cmd)
+                            if user_match:
+                                username = user_match.group(1)
+                        
+                        # 模拟影响行数
+                        if cmd_upper.startswith('INSERT') or cmd_upper.startswith('UPDATE') or cmd_upper.startswith('DELETE'):
+                            affected_rows.append(1)  # 模拟影响1行
+                        else:
+                            affected_rows.append(0)
+                            
+                elif '[RESP]' in line:
+                    m = re.match(r'\[(.*?)\] \[RESP\] (.*)', line)
+                    if m:
+                        responses.append(m.group(2))
+            
+            # 输出详细调试信息
+            print(f"\n[MySQL会话] 日志文件: {log_file}")
+            print(f"  源IP: {src_ip}:{src_port} -> 目标IP: {dst_ip}:{dst_port}")
+            print(f"  用户名: {username}")
+            print(f"  数据库: {database_name}")
+            print(f"  会话起始: {session_start_time}")
+            print(f"  命令数: {len(commands)}")
+            for i, cmd in enumerate(commands):
+                print(f"    [{timestamps[i] if i < len(timestamps) else ''}] CMD: {cmd}")
+                print(f"      Type: {command_types[i] if i < len(command_types) else ''}")
+                print(f"      RESP: {responses[i] if i < len(responses) else ''}")
+            
+            # 插入mysql_session
+            if session_start_time and src_ip:
+                conn, cursor = connect_to_db()
+                cursor.execute("""
+                    INSERT INTO mysql_session (username, time_date, src_ip, dst_ip, src_port, dst_port, database_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (username or 'root', session_start_time, src_ip, dst_ip, src_port, dst_port, database_name))
+                conn.commit()
+                cursor.execute("SELECT last_insert_rowid();")
+                mysql_session_id = cursor.fetchone()[0]
+                
+                # 插入命令与响应
+                for i, cmd in enumerate(commands):
+                    resp = responses[i] if i < len(responses) else ''
+                    ts = timestamps[i] if i < len(timestamps) else session_start_time
+                    cmd_type = command_types[i] if i < len(command_types) else 'OTHER'
+                    affected = affected_rows[i] if i < len(affected_rows) else 0
+                    
+                    cursor.execute("""
+                        INSERT INTO mysql_command (mysql_session_id, command, response, timestamp, command_type, affected_rows)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (mysql_session_id, cmd, resp, ts, cmd_type, affected))
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
+                print(f"已写入MySQL会话: {log_file}")
+        except Exception as e:
+            print(f"解析MySQL日志 {log_file} 时出错: {e}")
+
+
+def get_mysql_stats(logs_dir):
+    """
+    获取MySQL统计信息
+    :param logs_dir: 日志目录路径
+    :return: MySQL统计信息字典
+    """
+    parsed_logs = parse_mysql_logs(logs_dir)
+    stats = {
+        'total_sessions': 0,
+        'total_commands': 0,
+        'command_types': {},
+        'users': set(),
+        'databases': set()
+    }
+    
+    # 这里可以添加更详细的统计逻辑
+    return stats
+
+
+def get_mysql_recent_activity(logs_dir, hours=24):
+    """
+    获取最近的MySQL活动
+    :param logs_dir: 日志目录路径
+    :param hours: 小时数
+    :return: 最近活动列表
+    """
+    # 这里可以添加获取最近活动的逻辑
+    return []
+
+
 if __name__ == "__main__":
     logs_dir = os.path.join(os.path.dirname(__file__), "logs")
     get_logs_from_local()         # 解析SSH
     parse_pop3_logs(logs_dir)     # 解析POP3
     parse_http_logs(logs_dir)     # 解析HTTP
+    parse_mysql_logs(logs_dir)    # 解析MySQL
