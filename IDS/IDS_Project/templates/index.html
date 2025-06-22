@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>入侵检测系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#0FC6C2',
+                        danger: '#F53F3F',
+                        warning: '#FF7D00',
+                        success: '#00B42A',
+                        info: '#86909C',
+                        dark: '#1D2129',
+                        light: '#F2F3F5'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .sidebar-item {
+                @apply flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300;
+            }
+            .sidebar-item.active {
+                @apply bg-primary/10 text-primary font-medium;
+            }
+            .sidebar-item:not(.active):hover {
+                @apply bg-gray-100;
+            }
+            .stat-card {
+                @apply bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg;
+            }
+            .btn {
+                @apply px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2;
+            }
+            .btn-primary {
+                @apply bg-primary text-white hover:bg-primary/90;
+            }
+            .btn-danger {
+                @apply bg-danger text-white hover:bg-danger/90;
+            }
+            .btn-outline {
+                @apply border border-gray-300 hover:bg-gray-100;
+            }
+            .table-row {
+                @apply transition-all duration-300 hover:bg-gray-50;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter text-dark">
+    <div class="flex h-screen overflow-hidden">
+        <!-- 侧边栏 -->
+        <aside class="w-64 bg-white border-r border-gray-200 hidden md:block transition-all duration-300">
+            <div class="p-5 border-b border-gray-200">
+                <div class="flex items-center gap-3">
+                    <i class="fa fa-shield text-primary text-2xl"></i>
+                    <h1 class="text-xl font-bold">入侵检测系统</h1>
+                </div>
+            </div>
+            <nav class="p-4">
+                <div class="mb-6">
+                    <p class="text-xs uppercase text-gray-400 font-semibold px-4 mb-3">主菜单</p>
+                    <a href="{{ url_for('index') }}" class="sidebar-item">
+                        <i class="fa fa-dashboard"></i>
+                        <span>仪表盘</span>
+                    </a>
+                    <a href="{{ url_for('events') }}" class="sidebar-item">
+                        <i class="fa fa-list-alt"></i>
+                        <span>事件日志</span>
+                    </a>
+                    <a href="{{ url_for('realtime') }}" class="sidebar-item">
+                        <i class="fa fa-globe"></i>
+                        <span>实时监控</span>
+                    </a>
+                    <a href="{{ url_for('rules') }}" class="sidebar-item">
+                        <i class="fa fa-gavel"></i>
+                        <span>检测规则</span>
+                    </a>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-gray-400 font-semibold px-4 mb-3">系统</p>
+                    <a href="#" class="sidebar-item">
+                        <i class="fa fa-cog"></i>
+                        <span>系统设置</span>
+                    </a>
+                    <a href="#" class="sidebar-item">
+                        <i class="fa fa-line-chart"></i>
+                        <span>性能监控</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="absolute bottom-0 w-64 p-4 border-t border-gray-200">
+                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <img src="https://picsum.photos/id/1005/40/40" alt="用户头像" class="w-10 h-10 rounded-full object-cover">
+                    <div>
+                        <p class="font-medium">{{ current_user.username }}</p>
+                        <p class="text-xs text-gray-500">管理员</p>
+                    </div>
+                    <div class="ml-auto">
+                        <a href="{{ url_for('logout') }}" class="text-gray-400 hover:text-danger transition-colors">
+                            <i class="fa fa-sign-out"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- 顶部导航栏 -->
+            <header class="bg-white border-b border-gray-200 py-3 px-6 flex items-center justify-between">
+                <div class="flex items-center">
+                    <button id="sidebar-toggle" class="md:hidden text-gray-500 hover:text-primary mr-4">
+                        <i class="fa fa-bars text-xl"></i>
+                    </button>
+                    <div class="relative">
+                        <input type="text" placeholder="搜索事件、规则..." class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 w-64">
+                        <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button class="relative text-gray-500 hover:text-primary transition-colors">
+                        <i class="fa fa-bell text-xl"></i>
+                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs w-4 h-4 flex items-center justify-center rounded-full">3</span>
+                    </button>
+                    <button class="text-gray-500 hover:text-primary transition-colors">
+                        <i class="fa fa-question-circle text-xl"></i>
+                    </button>
+                    <div class="hidden md:flex items-center gap-3">
+                        <img src="https://picsum.photos/id/1005/40/40" alt="用户头像" class="w-8 h-8 rounded-full object-cover">
+                        <span class="font-medium">{{ current_user.username }}</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容 -->
+            <main class="flex-1 overflow-y-auto p-6">
+                <div class="mb-8">
+                    <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-2">仪表盘</h2>
+                    <p class="text-gray-500">实时监控系统安全状态</p>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-500 font-medium">今日事件</h3>
+                            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                <i class="fa fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                        <div class="flex items-end justify-between">
+                            <p class="text-3xl font-bold">128</p>
+                            <p class="text-success flex items-center text-sm">
+                                <i class="fa fa-arrow-up mr-1"></i> 12%
+                            </p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">相比昨天增加 14 个事件</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-500 font-medium">高风险事件</h3>
+                            <div class="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center text-danger">
+                                <i class="fa fa-shield"></i>
+                            </div>
+                        </div>
+                        <div class="flex items-end justify-between">
+                            <p class="text-3xl font-bold">24</p>
+                            <p class="text-danger flex items-center text-sm">
+                                <i class="fa fa-arrow-up mr-1"></i> 8%
+                            </p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">相比昨天增加 2 个高风险事件</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-500 font-medium">活跃规则</h3>
+                            <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                                <i class="fa fa-gavel"></i>
+                            </div>
+                        </div>
+                        <div class="flex items-end justify-between">
+                            <p class="text-3xl font-bold">28</p>
+                            <p class="text-success flex items-center text-sm">
+                                <i class="fa fa-check mr-1"></i> 全部启用
+                            </p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">共配置 32 条检测规则</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-500 font-medium">防护覆盖率</h3>
+                            <div class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center text-warning">
+                                <i class="fa fa-line-chart"></i>
+                            </div>
+                        </div>
+                        <div class="flex items-end justify-between">
+                            <p class="text-3xl font-bold">96%</p>
+                            <p class="text-success flex items-center text-sm">
+                                <i class="fa fa-arrow-up mr-1"></i> 2%
+                            </p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">相比上周提高 2 个百分点</p>
+                    </div>
+                </div>
+
+                <!-- 图表和最近事件 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div class="lg:col-span-2 bg-white rounded-xl p-5 card-shadow">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="font-bold text-lg">事件趋势</h3>
+                            <div class="flex gap-2">
+                                <button class="btn btn-outline text-sm">今日</button>
+                                <button class="btn btn-outline text-sm">本周</button>
+                                <button class="btn btn-outline text-sm bg-primary/10 text-primary">本月</button>
+                            </div>
+                        </div>
+                        <div class="h-80">
+                            <canvas id="eventTrendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl p-5 card-shadow">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="font-bold text-lg">事件分类</h3>
+                            <button class="text-primary hover:text-primary/80 text-sm">查看全部</button>
+                        </div>
+                        <div class="h-80">
+                            <canvas id="eventTypeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近事件表格 -->
+                <div class="bg-white rounded-xl p-5 card-shadow">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="font-bold text-lg">最近事件</h3>
+                        <a href="{{ url_for('events') }}" class="text-primary hover:text-primary/80 text-sm flex items-center gap-1">
+                            查看全部 <i class="fa fa-angle-right"></i>
+                        </a>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-gray-200">
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">时间</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">IP地址</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">事件类型</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">严重级别</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in recent_events %}
+                                <tr class="table-row border-b border-gray-100">
+                                    <td class="py-3 px-4 text-sm">{{ event[1] }}</td>
+                                    <td class="py-3 px-4 text-sm">{{ event[2] }}</td>
+                                    <td class="py-3 px-4 text-sm">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            {{ event[6] }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-4 text-sm">
+                                        {% if event[7] == '高' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            {{ event[7] }}
+                                        </span>
+                                        {% elif event[7] == '中' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            {{ event[7] }}
+                                        </span>
+                                        {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            {{ event[7] }}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 px-4 text-sm">
+                                        <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails('{{ event[0] }}')">
+                                            <i class="fa fa-eye"></i> 详情
+                                        </button>
+                                        <button class="text-gray-500 hover:text-gray-700">
+                                            <i class="fa fa-ban"></i> 忽略
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 事件详情模态框 -->
+    <div id="eventDetailsModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="font-bold text-lg">事件详情</h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="p-5" id="modalContent">
+                <!-- 内容将通过JavaScript动态填充 -->
+            </div>
+            <div class="p-5 border-t border-gray-200 flex justify-end gap-3">
+                <button class="btn btn-outline" id="closeModalBtn">关闭</button>
+                <button class="btn btn-danger">
+                    <i class="fa fa-ban mr-1"></i> 阻止IP
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化图表
+        document.addEventListener('DOMContentLoaded', function() {
+            // 事件趋势图表
+            const trendCtx = document.getElementById('eventTrendChart').getContext('2d');
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                    datasets: [
+                        {
+                            label: 'SQL注入尝试',
+                            data: [12, 19, 15, 28, 22, 35, 32, 28, 40, 38, 29, 34],
+                            borderColor: '#165DFF',
+                            backgroundColor: 'rgba(22, 93, 255, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'XSS攻击尝试',
+                            data: [8, 15, 12, 19, 25, 18, 20, 22, 28, 25, 20, 23],
+                            borderColor: '#0FC6C2',
+                            backgroundColor: 'rgba(15, 198, 194, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: '命令注入尝试',
+                            data: [5, 8, 12, 10, 15, 18, 12, 14, 18, 15, 12, 16],
+                            borderColor: '#FF7D00',
+                            backgroundColor: 'rgba(255, 125, 0, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 事件类型图表
+            const typeCtx = document.getElementById('eventTypeChart').getContext('2d');
+            new Chart(typeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        'SQL注入尝试',
+                        'XSS攻击尝试',
+                        '命令注入尝试',
+                        '目录遍历尝试',
+                        '敏感文件访问'
+                    ],
+                    datasets: [{
+                        data: [35, 25, 18, 12, 10],
+                        backgroundColor: [
+                            '#165DFF',
+                            '#0FC6C2',
+                            '#FF7D00',
+                            '#F53F3F',
+                            '#722ED1'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+
+            // 侧边栏切换
+            document.getElementById('sidebar-toggle').addEventListener('click', function() {
+                const sidebar = document.querySelector('aside');
+                sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('fixed');
+                sidebar.classList.toggle('inset-y-0');
+                sidebar.classList.toggle('left-0');
+                sidebar.classList.toggle('z-50');
+            });
+
+            // 模态框关闭按钮
+            document.getElementById('closeModal').addEventListener('click', function() {
+                document.getElementById('eventDetailsModal').classList.add('hidden');
+            });
+
+            document.getElementById('closeModalBtn').addEventListener('click', function() {
+                document.getElementById('eventDetailsModal').classList.add('hidden');
+            });
+        });
+
+        // 查看事件详情
+        function viewEventDetails(eventId) {
+            // 模拟从服务器获取事件详情
+            const mockEventDetails = {
+                id: eventId,
+                timestamp: '2025-06-10 14:30:25',
+                ip_address: '192.168.1.100',
+                path: '/admin/login.php',
+                method: 'POST',
+                user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                event_type: 'SQL注入尝试',
+                severity: '高',
+                details: {
+                    matched_pattern: "SELECT * FROM users WHERE username = 'admin' OR 1=1 --",
+                    request_data: {
+                        path: '/admin/login.php',
+                        args: {},
+                        form: {
+                            username: 'admin\' OR 1=1 --',
+                            password: 'password'
+                        }
+                    }
+                }
+            };
+
+            // 填充模态框内容
+            const modalContent = document.getElementById('modalContent');
+            modalContent.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <p class="text-sm text-gray-500">事件ID</p>
+                        <p class="font-medium">#${mockEventDetails.id}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">时间戳</p>
+                        <p class="font-medium">${mockEventDetails.timestamp}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">IP地址</p>
+                        <p class="font-medium">${mockEventDetails.ip_address}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">请求路径</p>
+                        <p class="font-medium">${mockEventDetails.path}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">请求方法</p>
+                        <p class="font-medium">${mockEventDetails.method}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">用户代理</p>
+                        <p class="font-medium text-sm">${mockEventDetails.user_agent}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">事件类型</p>
+                        <p class="font-medium">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                ${mockEventDetails.event_type}
+                            </span>
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">严重级别</p>
+                        <p class="font-medium">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                ${mockEventDetails.severity}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h4 class="font-medium mb-3">匹配的模式</h4>
+                    <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">${mockEventDetails.details.matched_pattern}</pre>
+                </div>
+
+                <div>
+                    <h4 class="font-medium mb-3">请求数据</h4>
+                    <div class="bg-gray-50 p-3 rounded-lg text-sm">
+                        <p class="font-medium mb-2">路径参数:</p>
+                        <pre class="text-xs">${JSON.stringify(mockEventDetails.details.request_data.path, null, 2)}</pre>
+
+                        <p class="font-medium mb-2 mt-4">查询参数:</p>
+                        <pre class="text-xs">${JSON.stringify(mockEventDetails.details.request_data.args, null, 2)}</pre>
+
+                        <p class="font-medium mb-2 mt-4">表单数据:</p>
+                        <pre class="text-xs">${JSON.stringify(mockEventDetails.details.request_data.form, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+
+            // 显示模态框
+            document.getElementById('eventDetailsModal').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
