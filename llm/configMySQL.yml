@@ -1,6 +1,8 @@
 personality:
     type: |
         MySQL
+    port: |
+        3309
     reset_prompt: |
         "Here the session stopped. What you see so far is the history of the conversation and you have to continue it, not repeat it. You just  +
         write the initial MySQL message now.
@@ -95,15 +97,9 @@ personality:
         "Your every output must end with string 'mysql>'. You will write nothing after it. " + 
         "Do not repeat the last line or the user command as the first line of your output. That is your output " + 
         "must not begin with mysql> but it must always end with mysql>. Ignore the datetime inside <> after user input. That is not your concern. "
-    final_instr: |
-        Based on this example make something of your own to be a starting message.  
-    model: |
-        gpt-3.5-turbo-16k
-    temperature: |
-        0.0
-    max_tokens: |
-        900
-    output: |
-        historyMySQL.txt
-    log: |
-        logMySQL.txt
+    final_instr: Based on this example make something of your own to be a starting message.
+    model: "moonshot-v1-8k"
+    temperature: 0.0
+    max_tokens: 900
+    output: historyMySQL.txt
+    log: logMySQL.txt

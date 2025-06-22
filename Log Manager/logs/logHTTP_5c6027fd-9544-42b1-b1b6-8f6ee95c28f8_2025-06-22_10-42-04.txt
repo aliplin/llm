@@ -1,0 +1,32 @@
+HTTP Request: {"method": "GET", "path": "/favicon.ico", "headers": {"Host": "localhost:8080", "Connection": "keep-alive", "sec-ch-ua-platform": "\"Windows\"", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36", "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"", "sec-ch-ua-mobile": "?0", "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Dest": "image", "Referer": "http://localhost:8080/", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "zh-CN,zh;q=0.9", "Cookie": "Phpstorm-abdb097d=5edc91f6-07cb-46c5-b4e1-f6d610c8f147; Pycharm-e51e61a8=07bc463e-a209-4e70-9d3d-acd06bf1ff7d"}, "client_ip": "127.0.0.1", "time": "2025-06-22 10:42:04"}
+Response: HTTP/1.1 404 Not Found
+Content-Type: text/html
+
+<html>
+<head>
+    <title>Tech Soulutions - Error 404</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .error-container { 
+            text-align: center; 
+            margin-top: 50px; 
+            color: #333;
+        }
+        .error-code { 
+            font-size: 4em; 
+            color: #d32f2f;
+        }
+        .error-description { 
+            margin-top: 20px; 
+            font-size: 1.5em; 
+            color: #757575;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-code">404</div>
+        <div class="error-description">Page not found</div>
+    </div>
+</body>
+</html>

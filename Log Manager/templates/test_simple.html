@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功能测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .active { background: #3498db; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>仪表板功能测试</h1>
+    
+    <div class="test-section">
+        <h2>服务切换测试</h2>
+        <button id="sshBtn" class="active">SSH</button>
+        <button id="httpBtn">HTTP</button>
+        <button id="mysqlBtn">MySQL</button>
+        <button id="pop3Btn">POP3</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>数据表格</h2>
+        <div id="tableContainer">
+            <table id="ssh-table" style="display:table;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>时间</th>
+                        <th>源IP</th>
+                        <th>目标IP</th>
+                        <th>端口</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            
+            <table id="http-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>客户端IP</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>请求数</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            
+            <table id="mysql-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>时间</th>
+                        <th>源IP</th>
+                        <th>数据库</th>
+                        <th>命令数</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            
+            <table id="pop3-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>时间</th>
+                        <th>源IP</th>
+                        <th>命令数</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>控制台输出</h2>
+        <div id="console" style="background: #f5f5f5; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace;"></div>
+    </div>
+
+    <script>
+        // 简化的测试功能
+        let currentService = 'ssh';
+        
+        function log(message) {
+            const console = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            console.innerHTML += `[${time}] ${message}<br>`;
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(`http://127.0.0.1:5000${endpoint}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                log(`Error fetching data from ${endpoint}: ${error.message}`);
+                return [];
+            }
+        }
+        
+        function switchService(service) {
+            log(`Switching to service: ${service}`);
+            currentService = service;
+            
+            // 更新按钮状态
+            document.querySelectorAll('button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`${service}Btn`).classList.add('active');
+            
+            // 隐藏所有表格
+            document.querySelectorAll('table').forEach(table => {
+                table.style.display = 'none';
+            });
+            
+            // 显示当前服务的表格
+            document.getElementById(`${service}-table`).style.display = 'table';
+            
+            // 加载数据
+            loadServiceData(service);
+        }
+        
+        async function loadServiceData(service) {
+            log(`Loading data for service: ${service}`);
+            
+            try {
+                const data = await fetchData(`/${service}_sessions`);
+                log(`Received ${data.length} records for ${service}`);
+                displayServiceData(service, data);
+            } catch (error) {
+                log(`Error loading ${service} data: ${error.message}`);
+            }
+        }
+        
+        function displayServiceData(service, data) {
+            const table = document.getElementById(`${service}-table`);
+            const tbody = table.querySelector('tbody');
+            tbody.innerHTML = '';
+            
+            if (Array.isArray(data) && data.length > 0) {
+                data.forEach(item => {
+                    const row = createTableRow(service, item);
+                    tbody.appendChild(row);
+                });
+                log(`Displayed ${data.length} rows for ${service}`);
+            } else {
+                log(`No data to display for ${service}`);
+            }
+        }
+        
+        function createTableRow(service, item) {
+            const row = document.createElement('tr');
+            
+            switch (service) {
+                case 'ssh':
+                    row.innerHTML = `
+                        <td>${item.id || ''}</td>
+                        <td>${item.username || ''}</td>
+                        <td>${item.time_date || ''}</td>
+                        <td>${item.src_ip || ''}</td>
+                        <td>${item.dst_ip || ''}</td>
+                        <td>${item.dst_port || ''}</td>
+                        <td><button onclick="viewDetails('${service}', ${item.id})">查看</button></td>
+                    `;
+                    break;
+                case 'http':
+                    row.innerHTML = `
+                        <td>${item.id || ''}</td>
+                        <td>${item.client_ip || ''}</td>
+                        <td>${item.start_time || ''}</td>
+                        <td>${item.end_time || ''}</td>
+                        <td>${item.request_count || 0}</td>
+                        <td><button onclick="viewDetails('${service}', ${item.id})">查看</button></td>
+                    `;
+                    break;
+                case 'mysql':
+                    row.innerHTML = `
+                        <td>${item.id || ''}</td>
+                        <td>${item.username || ''}</td>
+                        <td>${item.time_date || ''}</td>
+                        <td>${item.src_ip || ''}</td>
+                        <td>${item.database_name || ''}</td>
+                        <td>${item.command_count || 0}</td>
+                        <td><button onclick="viewDetails('${service}', ${item.id})">查看</button></td>
+                    `;
+                    break;
+                case 'pop3':
+                    row.innerHTML = `
+                        <td>${item.id || ''}</td>
+                        <td>${item.username || ''}</td>
+                        <td>${item.time_date || ''}</td>
+                        <td>${item.src_ip || ''}</td>
+                        <td>${item.command_count || 0}</td>
+                        <td><button onclick="viewDetails('${service}', ${item.id})">查看</button></td>
+                    `;
+                    break;
+            }
+            
+            return row;
+        }
+        
+        function viewDetails(service, id) {
+            log(`Viewing details for ${service} session ${id}`);
+            alert(`${service.toUpperCase()} 会话 ${id} 的详细信息`);
+        }
+        
+        // 事件监听器
+        document.getElementById('sshBtn').addEventListener('click', () => switchService('ssh'));
+        document.getElementById('httpBtn').addEventListener('click', () => switchService('http'));
+        document.getElementById('mysqlBtn').addEventListener('click', () => switchService('mysql'));
+        document.getElementById('pop3Btn').addEventListener('click', () => switchService('pop3'));
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            log('测试页面加载完成');
+            switchService('ssh');
+        });
+    </script>
+</body>
+</html> 

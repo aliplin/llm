@@ -1,0 +1,2 @@
+MySQL session start: 2025-06-22 10:34:43.126061 from 127.0.0.1:37184
+[HANDSHAKE] 发送MySQL握手包
