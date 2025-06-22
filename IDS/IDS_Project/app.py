@@ -16,6 +16,22 @@ import csv
 from flask import Response
 import io
 
+# 导入ids_llm模块以获取token状态
+try:
+    from ids_llm import token_monitor
+except ImportError:
+    # 如果导入失败，创建一个模拟的token监控器
+    class MockTokenMonitor:
+        def get_token_status(self):
+            return {
+                "total_tokens_used": 0,
+                "daily_tokens_used": 0,
+                "token_limit": 1000000,
+                "is_limit_exceeded": False,
+                "remaining_tokens": 1000000
+            }
+    token_monitor = MockTokenMonitor()
+
 # 禁用 Flask 的开发服务器警告(消除WARNING)
 #log = logging.getLogger('werkzeug')
 #log.setLevel(logging.ERROR)
@@ -749,6 +765,32 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+# Token状态监控API路由
+@app.route('/api/token_status', methods=['GET'])
+@login_required
+def get_token_status():
+    """获取当前token使用状态"""
+    try:
+        status = token_monitor.get_token_status()
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({
+            "error": "获取token状态失败",
+            "message": str(e),
+            "total_tokens_used": 0,
+            "daily_tokens_used": 0,
+            "token_limit": 1000000,
+            "is_limit_exceeded": False,
+            "remaining_tokens": 1000000
+        })
+
+# LLM分析状态页面
+@app.route('/llm_status')
+@login_required
+def llm_status():
+    """LLM分析状态页面"""
+    return render_template('llm_status.html')
 
 # WebSocket连接处理
 @socketio.on('connect')

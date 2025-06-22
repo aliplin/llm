@@ -95,6 +95,10 @@
                         <i class="fa fa-gavel"></i>
                         <span>检测规则</span>
                     </a>
+                    <a href="{{ url_for('llm_status') }}" class="sidebar-item">
+                        <i class="fa fa-brain"></i>
+                        <span>LLM分析</span>
+                    </a>
                 </div>
                 <div>
                     <p class="text-xs uppercase text-gray-400 font-semibold px-4 mb-3">系统</p>
@@ -212,18 +216,23 @@
 
                     <div class="stat-card">
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-gray-500 font-medium">防护覆盖率</h3>
+                            <h3 class="text-gray-500 font-medium">Token使用量</h3>
                             <div class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center text-warning">
-                                <i class="fa fa-line-chart"></i>
+                                <i class="fa fa-database"></i>
                             </div>
                         </div>
                         <div class="flex items-end justify-between">
-                            <p class="text-3xl font-bold">96%</p>
-                            <p class="text-success flex items-center text-sm">
-                                <i class="fa fa-arrow-up mr-1"></i> 2%
+                            <p class="text-3xl font-bold" id="daily-tokens">0</p>
+                            <p class="text-success flex items-center text-sm" id="token-status">
+                                <i class="fa fa-check mr-1"></i> 正常
                             </p>
                         </div>
-                        <p class="text-xs text-gray-500 mt-2">相比上周提高 2 个百分点</p>
+                        <p class="text-xs text-gray-500 mt-2" id="token-info">今日已使用 0 tokens</p>
+                        <div class="mt-2">
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-warning h-2 rounded-full transition-all duration-300" id="token-progress" style="width: 0%"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -455,6 +464,56 @@
             document.getElementById('closeModalBtn').addEventListener('click', function() {
                 document.getElementById('eventDetailsModal').classList.add('hidden');
             });
+
+            // Token状态监控
+            function updateTokenStatus() {
+                fetch('/api/token_status')
+                    .then(response => response.json())
+                    .then(data => {
+                        const dailyTokens = document.getElementById('daily-tokens');
+                        const tokenStatus = document.getElementById('token-status');
+                        const tokenInfo = document.getElementById('token-info');
+                        const tokenProgress = document.getElementById('token-progress');
+                        
+                        // 更新token数量
+                        dailyTokens.textContent = data.daily_tokens_used.toLocaleString();
+                        
+                        // 计算使用百分比
+                        const usagePercent = (data.daily_tokens_used / data.token_limit) * 100;
+                        tokenProgress.style.width = Math.min(usagePercent, 100) + '%';
+                        
+                        // 更新状态文本和颜色
+                        if (data.is_limit_exceeded) {
+                            tokenStatus.innerHTML = '<i class="fa fa-exclamation-triangle mr-1"></i> 已超限';
+                            tokenStatus.className = 'text-danger flex items-center text-sm';
+                            tokenProgress.className = 'bg-danger h-2 rounded-full transition-all duration-300';
+                        } else if (usagePercent > 80) {
+                            tokenStatus.innerHTML = '<i class="fa fa-warning mr-1"></i> 警告';
+                            tokenStatus.className = 'text-warning flex items-center text-sm';
+                            tokenProgress.className = 'bg-warning h-2 rounded-full transition-all duration-300';
+                        } else {
+                            tokenStatus.innerHTML = '<i class="fa fa-check mr-1"></i> 正常';
+                            tokenStatus.className = 'text-success flex items-center text-sm';
+                            tokenProgress.className = 'bg-success h-2 rounded-full transition-all duration-300';
+                        }
+                        
+                        // 更新详细信息
+                        tokenInfo.textContent = `今日已使用 ${data.daily_tokens_used.toLocaleString()} / ${data.token_limit.toLocaleString()} tokens`;
+                    })
+                    .catch(error => {
+                        console.error('获取token状态失败:', error);
+                        // 显示错误状态
+                        const tokenStatus = document.getElementById('token-status');
+                        tokenStatus.innerHTML = '<i class="fa fa-times mr-1"></i> 错误';
+                        tokenStatus.className = 'text-danger flex items-center text-sm';
+                    });
+            }
+
+            // 初始加载token状态
+            updateTokenStatus();
+            
+            // 每30秒更新一次token状态
+            setInterval(updateTokenStatus, 30000);
         });
 
         // 查看事件详情

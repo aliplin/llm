@@ -1,0 +1,213 @@
+ <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM分析状态 - 入侵检测系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style>
+        .card-shadow { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); }
+        .stat-card { @apply bg-white rounded-xl p-5 card-shadow transition-all duration-300 hover:shadow-lg; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto p-6">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold mb-2">LLM分析状态</h2>
+            <p class="text-gray-500">监控Kimi API使用情况和威胁检测分析状态</p>
+        </div>
+
+        <!-- Token使用统计 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">今日Token使用</h3>
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                        <i class="fa fa-database"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="daily-tokens">0</p>
+                    <p class="text-green-600 flex items-center text-sm" id="token-status">
+                        <i class="fa fa-check mr-1"></i> 正常
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" id="token-info">今日已使用 0 tokens</p>
+                <div class="mt-2">
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" id="token-progress" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">总Token使用</h3>
+                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                        <i class="fa fa-chart-line"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="total-tokens">0</p>
+                    <p class="text-gray-600 flex items-center text-sm">
+                        <i class="fa fa-info-circle mr-1"></i> 累计
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">系统运行以来总使用量</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">HTTP分析</h3>
+                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
+                        <i class="fa fa-globe"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="http-analysis">0</p>
+                    <p class="text-green-600 flex items-center text-sm">
+                        <i class="fa fa-shield mr-1"></i> 已分析
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">今日HTTP请求分析次数</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">SSH分析</h3>
+                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                        <i class="fa fa-terminal"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="ssh-analysis">0</p>
+                    <p class="text-green-600 flex items-center text-sm">
+                        <i class="fa fa-shield mr-1"></i> 已分析
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">今日SSH活动分析次数</p>
+            </div>
+        </div>
+
+        <!-- 系统状态和配置 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-xl p-5 card-shadow">
+                <h3 class="font-bold text-lg mb-6">系统状态</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <i class="fa fa-server text-blue-600"></i>
+                            <span>LLM服务状态</span>
+                        </div>
+                        <span class="text-green-600 font-medium" id="llm-status">正常运行</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <i class="fa fa-network-wired text-blue-600"></i>
+                            <span>网络监听</span>
+                        </div>
+                        <span class="text-green-600 font-medium" id="network-status">活跃</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <i class="fa fa-shield text-blue-600"></i>
+                            <span>威胁检测</span>
+                        </div>
+                        <span class="text-green-600 font-medium" id="threat-detection">启用</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <i class="fa fa-ban text-blue-600"></i>
+                            <span>自动封禁</span>
+                        </div>
+                        <span class="text-green-600 font-medium" id="auto-block">启用</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-5 card-shadow">
+                <h3 class="font-bold text-lg mb-6">配置信息</h3>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">API提供商</span>
+                        <span class="font-medium">Kimi (Moonshot)</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">模型版本</span>
+                        <span class="font-medium">moonshot-v1-8k</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">每日Token限制</span>
+                        <span class="font-medium" id="token-limit">1,000,000</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">SSH观察窗口</span>
+                        <span class="font-medium">30秒</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span class="text-gray-600">监听端口</span>
+                        <span class="font-medium">80, 22</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Token状态监控
+        function updateTokenStatus() {
+            fetch('/api/token_status')
+                .then(response => response.json())
+                .then(data => {
+                    const dailyTokens = document.getElementById('daily-tokens');
+                    const totalTokens = document.getElementById('total-tokens');
+                    const tokenStatus = document.getElementById('token-status');
+                    const tokenInfo = document.getElementById('token-info');
+                    const tokenProgress = document.getElementById('token-progress');
+                    const tokenLimit = document.getElementById('token-limit');
+
+                    // 更新token数量
+                    dailyTokens.textContent = data.daily_tokens_used.toLocaleString();
+                    totalTokens.textContent = data.total_tokens_used.toLocaleString();
+                    tokenLimit.textContent = data.token_limit.toLocaleString();
+
+                    // 计算使用百分比
+                    const usagePercent = (data.daily_tokens_used / data.token_limit) * 100;
+                    tokenProgress.style.width = Math.min(usagePercent, 100) + '%';
+
+                    // 更新状态文本和颜色
+                    if (data.is_limit_exceeded) {
+                        tokenStatus.innerHTML = '<i class="fa fa-exclamation-triangle mr-1"></i> 已超限';
+                        tokenStatus.className = 'text-red-600 flex items-center text-sm';
+                        tokenProgress.className = 'bg-red-600 h-2 rounded-full transition-all duration-300';
+                    } else if (usagePercent > 80) {
+                        tokenStatus.innerHTML = '<i class="fa fa-warning mr-1"></i> 警告';
+                        tokenStatus.className = 'text-yellow-600 flex items-center text-sm';
+                        tokenProgress.className = 'bg-yellow-600 h-2 rounded-full transition-all duration-300';
+                    } else {
+                        tokenStatus.innerHTML = '<i class="fa fa-check mr-1"></i> 正常';
+                        tokenStatus.className = 'text-green-600 flex items-center text-sm';
+                        tokenProgress.className = 'bg-blue-600 h-2 rounded-full transition-all duration-300';
+                    }
+
+                    // 更新详细信息
+                    tokenInfo.textContent = `今日已使用 ${data.daily_tokens_used.toLocaleString()} / ${data.token_limit.toLocaleString()} tokens`;
+                })
+                .catch(error => {
+                    console.error('获取token状态失败:', error);
+                    const tokenStatus = document.getElementById('token-status');
+                    tokenStatus.innerHTML = '<i class="fa fa-times mr-1"></i> 错误';
+                    tokenStatus.className = 'text-red-600 flex items-center text-sm';
+                });
+        }
+
+        // 初始加载token状态
+        updateTokenStatus();
+
+        // 每30秒更新一次token状态
+        setInterval(updateTokenStatus, 30000);
+    </script>
+</body>
+</html>
