@@ -1,0 +1,23 @@
+Session started at: 2025-06-25 15:30:49
+root@honeypot:~$ ls
+total 40
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 bin
+drwxr-xr-x 3 root root 4096 Mar 23 09:00 boot
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 dev
+drwxr-xr-x 4 root root  380 Mar 23 09:00 etc
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 home
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 lib
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 lib64
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 media
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 mnt
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 opt
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 proc
+drwx------ 2 root root 4096 Mar 23 09:00 root
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 run
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 sbin
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 srv
+drwxr-xr-x 2 root root 4096 Mar 23 09:00 sys
+drwxrwxrwt 2 root root 4096 Mar 23 09:00 tmp
+drwxr-xr-x 10 root root  340 Mar 23 09:00 usr
+drwxr-xr-x 11 root root  340 Mar 23 09:00 var
+root@linux:~

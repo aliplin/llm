@@ -1,0 +1,77 @@
+HTTP Request: {"method": "GET", "path": "/", "headers": {"Host": "localhost:8080", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2", "Accept-Encoding": "gzip, deflate, br, zstd", "Connection": "keep-alive", "Upgrade-Insecure-Requests": "1", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none", "Sec-Fetch-User": "?1", "Priority": "u=0, i"}, "client_ip": "127.0.0.1", "time": "2025-06-25 15:33:21"}
+Response: HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Soulutions - TechPrint 2000</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        nav {
+            display: flex;
+            justify-content: space-around;
+            background-color: #343a40;
+            padding: 10px 0;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+        }
+        nav a:hover {
+            background-color: #495057;
+        }
+        .content {
+            margin: 20px;
+        }
+        footer {
+            background-color: #343a40;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Tech Soulutions - TechPrint 2000</h1>
+    </header>
+    <nav>
+        <a href="/">首页</a>
+        <a href="/documentation">文档</a>
+        <a href="/support">支持</a>
+    </nav>
+    <div class="content">
+        <h2>欢迎来到 Tech Soulutions</h2>
+        <p>Tech Soulutions 是一家领先的打印机制造商，专注于提供创新和高效的打印解决方案。我们的旗舰产品，TechPrint 2000，以其卓越的性能和可靠性而闻名。</p>
+        <p>TechPrint 2000 拥有以下特点：</p>
+        <ul>
+            <li>高速打印：每分钟可打印高达 30 页。</li>
+            <li>高分辨率：高达 1200 x 1200 dpi 的打印质量。</li>
+            <li>无线连接：支持 Wi-Fi 和蓝牙连接。</li>
+            <li>多功能：打印、复印和扫描一体化。</li>
+            <li>节能：符合能源之星标准。</li>
+        </ul>
+        <p>我们致力于为客户提供卓越的打印体验。探索我们的网站，了解更多关于 TechPrint 2000 的信息。</p>
+    </div>
+    <footer>
+        <p>&copy; 2025 Tech Soulutions. 版权所有。</p>
+    </footer>
+</body>
+</html>
