@@ -1,0 +1,8 @@
+POP3 session start: 2025-06-25 15:32:34.790551 from 127.0.0.1:5713
+[BANNER] Connected to pop.domain.ext.
+Escape character is '^]'.
++OK ready
+> 
+[2025-06-25 15:32:40] [CMD] QIUT
+[2025-06-25 15:32:40] [RESP] +OK quit. Goodbye.
+POP3 session end: 2025-06-25 15:33:00.560333
