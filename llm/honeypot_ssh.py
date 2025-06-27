@@ -11,7 +11,7 @@ SSH_PORT = 5656
 SSH_USER = "root"
 SSH_PASS = "123456"
 today = datetime.now()
-
+line_ending="\r\n"
 # 目录切换命令处理
 
 def handle_cd_command(user_input, current_dir, username):
@@ -38,7 +38,55 @@ def format_shell_output(text):
         lines.pop(0)
     while lines and lines[-1] == '':
         lines.pop()
-    return '\r\n'.join(lines)
+    return f'{line_ending}'.join(lines)
+
+def format_ai_response(response, command):
+    import re, os
+    # 匹配所有命令行提示符（如 root@honeypot:~#、root@honeypot:/bin$ 等）
+    prompt_pattern = r'[\w.-]+@[\w.-]+:[~\w/\.-]*[#$]'
+    matches = list(re.finditer(prompt_pattern, response))
+    if len(matches) >= 2:
+        # 只保留第一个和最后一个提示符之间的内容
+        start = matches[0].end()
+        end = matches[-1].start()
+        response = response[start:end]
+    else:
+        # 如果只剩下提示符（或全是提示符），直接返回空
+        if re.fullmatch(r'\s*' + prompt_pattern + r'\s*', response):
+            return ''
+    # 去除首尾多余换行
+    response = response.strip('\r\n')
+    # 其余格式化逻辑（如ls、pwd等）可保留
+    command_lower = command.lower().strip()
+    if command_lower == 'ls' or command_lower.startswith('ls '):
+        lines = response.split('\n')
+        formatted_lines = []
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('$') and not line.startswith(command_lower):
+                if not re.match(r'^[d-][rwx-]{9}\s+\d+', line):
+                    if os.path.basename(line):
+                        formatted_lines.append(line)
+                else:
+                    formatted_lines.append(line)
+        return '\n'.join(formatted_lines) if formatted_lines else response
+    elif command_lower == 'pwd':
+        path_match = re.search(r'/([^/\s]+/?)*', response)
+        if path_match:
+            return path_match.group(0)
+        return response.strip()
+    elif command_lower == 'whoami':
+        cleaned_response = re.sub(r'^whoami\s*', '', response)
+        username_match = re.search(r'\b\w+\b', cleaned_response)
+        if username_match:
+            return username_match.group(0)
+        return cleaned_response.strip()
+    elif command_lower.startswith('cat ') or command_lower.startswith('head ') or command_lower.startswith('tail '):
+        return re.sub(r'^.*?\$\s*', '', response)
+    elif command_lower in ['clear', 'reset']:
+        return '\033[2J\033[H'
+    else:
+        return response.strip()
 
 # SSH蜜罐主类
 class HoneyPotServer(ServerInterface):
@@ -59,7 +107,6 @@ class HoneyPotServer(ServerInterface):
         self.running = True
         self.input_cond = threading.Condition()
         self.debug = True  # 调试模式开关
-
         # 生成会话唯一标识符
         self.session_uuid = str(uuid.uuid4())
         self.session_start_time = datetime.now()
@@ -209,24 +256,24 @@ class HoneyPotServer(ServerInterface):
         self.input_buffer = ""
         client_ip = self.channel.getpeername()[0] if self.channel else "unknown"
         welcome_lines = [
-            f"Last login: {today.strftime('%a %b %d %H:%M:%S %Y')} from {client_ip}\r\n",
-            f"Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-100-generic x86_64)\r\n",
-            "\r\n",
-            " * Documentation:  https://help.ubuntu.com/\r\n",
-            " * Management:     https://landscape.canonical.com\r\n",
-            " * Support:        https://ubuntu.com/advantage\r\n",
-            "\r\n",
-            f"  System information as of {today.strftime('%a %b %d %H:%M:%S %Y')}\r\n",
-            "\r\n",
-            "  System load:  0.52    Users logged in:    1\r\n",
-            "  Usage of /:   23.4% of 251.0GB    IPv4 address: 192.168.1.100\r\n",
-            "  Memory usage: 45%      System uptime: 2 days\r\n",
-            "  Swap usage:   0%\r\n",
-            "",
-            "0 updates can be applied immediately.\r\n",
-            "The list of available updates is more than a week old.\r\n",
-            "To check for new updates run: sudo apt update\r\n",
-            "\r\n"
+            f"Last login: {today.strftime('%a %b %d %H:%M:%S %Y')} from {client_ip}{line_ending}",
+            f"Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-100-generic x86_64){line_ending}",
+            f"{line_ending}",
+            f" * Documentation:  https://help.ubuntu.com/{line_ending}",
+            f" * Management:     https://landscape.canonical.com{line_ending}",
+            f" * Support:        https://ubuntu.com/advantage{line_ending}",
+            f"{line_ending}",
+            f"  System information as of {today.strftime('%a %b %d %H:%M:%S %Y')}{line_ending}",
+            f"{line_ending}",
+            f"  System load:  0.52    Users logged in:    1{line_ending}",
+            f"  Usage of /:   23.4% of 251.0GB    IPv4 address: 192.168.1.100{line_ending}",
+            f"  Memory usage: 45%      System uptime: 2 days{line_ending}",
+            f"  Swap usage:   0%{line_ending}",
+            f"{line_ending}",
+            f"0 updates can be applied immediately.{line_ending}",
+            f"The list of available updates is more than a week old.{line_ending}",
+            f"To check for new updates run: sudo apt update{line_ending}",
+            f"{line_ending}"
         ]
         def send_prompt():
             prompt_display_dir = current_dir
@@ -234,13 +281,13 @@ class HoneyPotServer(ServerInterface):
                 prompt_display_dir = "~" + current_dir[len(f"/home/{self.username}"):]
             prompt = f"{self.username}@{self.hostname}:{prompt_display_dir}$ "
             self.channel.send(prompt)
-        self.channel.send(format_shell_output("".join(welcome_lines)) + "\r\n")
+        self.channel.send(format_shell_output("".join(welcome_lines)) + f"{line_ending}")
         send_prompt()
         while self.running and self.channel is not None and self.channel.active:
             command = self.read_until_newline()
             if command is None:
                 break
-            command = command.rstrip('\r\n')
+            command = command.rstrip(f'{line_ending}')
             if command.strip() == "":
                 send_prompt()
                 continue
@@ -248,8 +295,7 @@ class HoneyPotServer(ServerInterface):
             current_dir = handle_cd_command(command, current_dir, self.username)
             cmd_lower = command.strip().lower()
             if cmd_lower in ("exit", "logout", "\q"):
-                print("触发！！！！！！@@@")
-                self.channel.send(format_shell_output("\r\nlogout") + "\r\n")
+                self.channel.send(format_shell_output(f"{line_ending}logout") + f"{line_ending}")
                 self.running = False
                 break
             if cmd_lower == "clear":
@@ -267,8 +313,13 @@ class HoneyPotServer(ServerInterface):
                 )
                 ai_response = response.choices[0].message.content
                 if self.debug: print(f"[SSH蜜罐] LLM原始响应: {repr(ai_response)}")
+                # 过滤AI响应中的命令行提示符和多余换行
+                ai_response = format_ai_response(ai_response, command)
                 formatted = format_shell_output(ai_response)
-                self.channel.send("\r\n"+formatted + "\r\n")
+                if formatted=='':
+                    self.channel.send(formatted)
+                else:
+                    self.channel.send(formatted + f"{line_ending}")
                 messages.append({"role": "assistant", "content": ai_response})
                 if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(ai_response)}")
                 try:
@@ -281,9 +332,8 @@ class HoneyPotServer(ServerInterface):
                     print(f"[SSH蜜罐] 记录交互历史失败: {e}")
             except Exception as e:
                 error_msg = format_shell_output(f"bash: {command}: command not found")
-                self.channel.send(error_msg + "\r\n")
+                self.channel.send(error_msg + f"{line_ending}")
                 print(f"[SSH蜜罐] LLM调用失败，发送默认错误消息: {e}")
-                send_prompt()
                 continue
             send_prompt()
         if self.channel is not None:
@@ -315,7 +365,7 @@ class HoneyPotServer(ServerInterface):
                 # 处理特殊字符
                 if char == '\r' or char == '\n':  # 回车或换行键
                     # 发送换行符给客户端，让用户看到换行
-                    self.channel.send("\r\n")
+                    self.channel.send(f"{line_ending}")
                     if self.debug: print(f"[SSH蜜罐] 收到回车/换行键，返回命令: {repr(buffer)}")
                     return buffer.strip()
                 elif char == '\x7f':  # 退格键 (Backspace)
@@ -326,7 +376,7 @@ class HoneyPotServer(ServerInterface):
                         if self.debug: print(f"[SSH蜜罐] 退格，缓冲区: {repr(buffer)}")
                 elif char == '\x03':  # Ctrl+C
                     buffer = ""
-                    self.channel.send("\r\n")
+                    self.channel.send(f"{line_ending}")
                     if self.debug: print("[SSH蜜罐] 收到Ctrl+C")
                     return ""
                 elif char == '\x04':  # Ctrl+D (EOF)
