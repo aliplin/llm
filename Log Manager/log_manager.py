@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template
-from flask_cors import CORS  # Import Flask-CORS
+from flask_cors import CORS #import Flask-CORS
 import sqlite3
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
