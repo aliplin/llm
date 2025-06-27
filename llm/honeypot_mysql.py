@@ -5,6 +5,39 @@ from datetime import datetime
 import socket
 import struct
 
+def send_mysql_packet(sock, payload, seq):
+    length = len(payload)
+    header = struct.pack('<I', length)[:3] + bytes([seq])
+    sock.sendall(header + payload)
+
+def send_mysql_text_result(sock, seq, text):
+    # 1. 列数包
+    col_count = 1
+    col_count_packet = bytes([col_count])
+    send_mysql_packet(sock, col_count_packet, seq)
+    seq += 1
+    # 2. 列定义包
+    col_name = b"result"
+    col_def_packet = (
+        b"\x03def" + b"\x00" * 4 +  # catalog, db, table, org_table
+        col_name + b"\x00" +        # name
+        col_name + b"\x0c" +        # org_name, length of fixed fields
+        b"\x3f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"  # type, flags, etc.
+    )
+    send_mysql_packet(sock, col_def_packet, seq)
+    seq += 1
+    # 3. EOF包
+    send_mysql_packet(sock, b"\xfe\x00\x00\x02\x00\x00", seq)
+    seq += 1
+    # 4. 行数据包
+    row_packet = bytes([len(text.encode())]) + text.encode()
+    send_mysql_packet(sock, row_packet, seq)
+    seq += 1
+    # 5. EOF包
+    send_mysql_packet(sock, b"\xfe\x00\x00\x02\x00\x00", seq)
+    seq += 1
+    return seq
+
 def start_mysql(openai_client, mysql_identity, mysql_model, mysql_temp, mysql_max_tokens):
     logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
     os.makedirs(logs_dir, exist_ok=True)
@@ -82,24 +115,10 @@ def start_mysql(openai_client, mysql_identity, mysql_model, mysql_temp, mysql_ma
             full_ok_packet = struct.pack('<I', ok_packet_len)[:3] + struct.pack('B', seq + 1) + ok_packet
             client_sock.sendall(full_ok_packet)
             print("[MySQL蜜罐] 已发送认证成功响应")
-            welcome_msg = "\n".join([
-                "Welcome to the MySQL monitor.  Commands end with ; or \\g.",
-                "Your MySQL connection id is 12345",
-                "Server version: 5.7.42 MySQL Community Server (GPL)",
-                "",
-                "Copyright (c) 2000, 2025, Oracle and/or its affiliates.",
-                "",
-                "Oracle is a registered trademark of Oracle Corporation and/or its",
-                "affiliates. Other names may be trademarks of their respective",
-                "owners.",
-                "",
-                "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.",
-                "",
-                "mysql> "
-            ]).encode('utf-8')
-            client_sock.send(welcome_msg)
-            print("[MySQL蜜罐] 已发送欢迎消息")
-            current_seq = seq + 3
+            welcome_msg = "Welcome to the MySQL honeypot. Type SQL or any command."
+            seq = seq + 2
+            send_mysql_text_result(client_sock, seq, welcome_msg)
+            seq += 5
             while True:
                 try:
                     header = client_sock.recv(4)
@@ -128,9 +147,8 @@ def start_mysql(openai_client, mysql_identity, mysql_model, mysql_temp, mysql_ma
                     with open(history_file, 'a', encoding='utf-8') as histf:
                         histf.write(f"mysql> {command_content}\n")
                     if command_content.lower() in ("quit", "exit", "\\q"):
-                        goodbye = "Bye\n".encode('utf-8')
-                        goodbye_header = struct.pack('<I', len(goodbye))[:3] + struct.pack('B', current_seq)
-                        client_sock.sendall(goodbye_header + goodbye)
+                        goodbye = "Bye"
+                        send_mysql_text_result(client_sock, seq_num + 1, goodbye)
                         break
                     messages.append({"role": "user", "content": command_content})
                     try:
@@ -145,15 +163,11 @@ def start_mysql(openai_client, mysql_identity, mysql_model, mysql_temp, mysql_ma
                         ai_response = f"ERROR 2006 (HY000): MySQL server has gone away: {str(e)}"
                     if not ai_response.endswith('\n'):
                         ai_response += '\n'
-                    ai_response += "mysql> "
                     with open(log_file, 'a', encoding='utf-8') as logf:
                         logf.write(f"[{now}] [RESP] {ai_response}\n")
                     with open(history_file, 'a', encoding='utf-8') as histf:
                         histf.write(f"{ai_response}\n")
-                    response_bytes = ai_response.encode('utf-8')
-                    response_header = struct.pack('<I', len(response_bytes))[:3] + struct.pack('B', current_seq)
-                    client_sock.sendall(response_header + response_bytes)
-                    current_seq += 1
+                    send_mysql_text_result(client_sock, seq_num + 1, ai_response)
                 except socket.timeout:
                     print("[MySQL蜜罐] 命令接收超时，等待客户端输入...")
                     continue

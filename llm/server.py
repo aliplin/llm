@@ -189,10 +189,6 @@ def format_ai_response(response, command):
         # 其他命令，保持原格式但清理多余内容
         return response.strip()
 
-
-
-
-
 def main():
     try:
         env_path = '.env'
