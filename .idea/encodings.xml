@@ -3,6 +3,7 @@
   <component name="Encoding">
     <file url="file://$PROJECT_DIR$/llm/logSSH.txt" charset="GBK" />
     <file url="file://$PROJECT_DIR$/logSSH.txt" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/requirements.txt" charset="GBK" />
     <file url="file://$PROJECT_DIR$/ssh_login_history.txt" charset="GBK" />
   </component>
 </project>
