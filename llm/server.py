@@ -1,7 +1,9 @@
 import argparse
+import errno
 import os
 import random
 import re
+import time
 from datetime import datetime
 from time import sleep
 import yaml
@@ -380,15 +382,16 @@ class HoneyPotServer(ServerInterface):
         self.channel.send(welcome_msg)
         if self.debug: print("[SSH蜜罐] 欢迎信息已发送")
 
+        # 构建命令提示符
+        display_dir = current_dir
+        if current_dir.startswith(f"/home/{self.username}"):
+            display_dir = "~" + current_dir[len(f"/home/{self.username}"):]
+        prompt = f"{self.username}@{self.hostname}:{display_dir}$ "
+        self.channel.send(prompt)
+        if self.debug: print(f"[SSH蜜罐] 已发送提示符: {prompt}")
+
         # 命令交互循环
         while self.running and self.channel is not None and self.channel.active:
-            # 构建命令提示符
-            display_dir = current_dir
-            if current_dir.startswith(f"/home/{self.username}"):
-                display_dir = "~" + current_dir[len(f"/home/{self.username}"):]
-            prompt = f"{self.username}@{self.hostname}:{display_dir}$ "
-            self.channel.send(prompt)
-            if self.debug: print(f"[SSH蜜罐] 已发送提示符: {prompt}")
 
             # 接收用户命令（事件驱动方式）
             command = self.read_until_newline()
@@ -423,21 +426,21 @@ class HoneyPotServer(ServerInterface):
                 
                 if self.debug: print(f"[SSH蜜罐] LLM原始响应: {repr(ai_response)}")
                 
-                # 格式化AI响应，使其更逼真
-                formatted_response = format_ai_response(ai_response, command)
-                
-                if self.debug: print(f"[SSH蜜罐] 格式化后响应: {repr(formatted_response)}")
+                # # 格式化AI响应，使其更逼真
+                # formatted_response = format_ai_response(ai_response, command)
+                #
+                # if self.debug: print(f"[SSH蜜罐] 格式化后响应: {repr(formatted_response)}")
                 
                 # 发送响应给客户端
-                self.channel.send(formatted_response)
+                self.channel.send(ai_response)
                 messages.append({"role": "assistant", "content": ai_response})
-                if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(formatted_response)}")
+                if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(ai_response)}")
 
                 # 记录交互到historySSH文件
                 try:
                     with open(self.history_ssh_file, "a", encoding="utf-8") as f:
                         f.write(f"{self.username}@{self.hostname}:{display_dir}$ {command}\n")
-                        f.write(f"{formatted_response}\n")
+                        f.write(f"{ai_response}\n")
                     if self.debug: print(f"[SSH蜜罐] 交互已记录到: {self.history_ssh_file}")
                 except Exception as e:
                     print(f"[SSH蜜罐] 记录交互历史失败: {e}")
@@ -674,7 +677,8 @@ def handle_ssh_connection(client_socket, openai_client, identity, model_name,
 def main():
     try:
         # 读取命令行参数
-        config_path, env_path, model_name, temperature, max_tokens, output_dir, log_file = read_arguments()
+        # config_path, env_path, model_name, temperature, max_tokens, output_dir, log_file = read_arguments()
+        env_path = '.env'
         # 读取各自配置文件
         with open(os.path.join(os.path.dirname(__file__), 'configSSH.yml'), 'r', encoding='utf-8') as f:
             ssh_identity = yaml.safe_load(f)['personality']
@@ -688,7 +692,7 @@ def main():
         openai_client = set_key(env_path)
         # 设置各自参数
         ssh_model, ssh_temp, ssh_max_tokens, ssh_output, ssh_log = set_parameters(
-            ssh_identity, model_name, temperature, max_tokens, output_dir, log_file)
+            ssh_identity, None, None, None, None, None)
         http_model, http_temp, http_max_tokens, http_output, http_log = set_parameters(
             http_identity, None, None, None, None, None)
         pop3_model, pop3_temp, pop3_max_tokens, pop3_output, pop3_log = set_parameters(
@@ -717,6 +721,7 @@ def main():
             logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
             os.makedirs(logs_dir, exist_ok=True)
             pop3_port = int(pop3_identity.get('port', 110))
+
             def handle_pop3_client(client_sock, client_addr):
                 session_uuid = str(uuid.uuid4())
                 session_start_time = datetime.now()
@@ -767,6 +772,13 @@ def main():
                                 max_tokens=pop3_max_tokens
                             )
                             ai_response = response.choices[0].message.content
+                            print(f"[POP3蜜罐] 发送响应前: {ai_response}")
+                            # 将所有 \n 替换为 \r\n
+                            ai_response = ai_response.replace('\n', '\r\n')
+                            # 确保响应以 \r\n> 结尾
+                            if not ai_response.endswith('\r\n'):
+                                ai_response += '\r\n>'
+                            print(f"[POP3蜜罐] 发送响应后: {ai_response}")
                         except Exception as e:
                             ai_response = f"-ERR LLM服务异常: {e}\r\n> "
                         with open(log_file, 'a', encoding='utf-8') as logf:
@@ -803,17 +815,19 @@ def main():
                     continue
         threading.Thread(target=start_pop3, daemon=True).start()
         
-        # 启动MySQL服务器（新线程，传递mysql_identity和参数）
+        import time
+        # 启动MySQL服务器（新线程，传递mysql_identity和参数）Add commentMore actions
         def start_mysql():
             import uuid
             import threading
             from datetime import datetime
             import socket
             import struct
+            import time
             logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
             os.makedirs(logs_dir, exist_ok=True)
             mysql_port = int(mysql_identity.get('port', 3309))
-            
+
             def handle_mysql_client(client_sock, client_addr):
                 session_uuid = str(uuid.uuid4())
                 session_start_time = datetime.now()
@@ -822,104 +836,238 @@ def main():
                 history_file = os.path.join(logs_dir, f"historyMySQL_{session_uuid}_{timestamp}.txt")
                 try:
                     with open(log_file, 'a', encoding='utf-8') as logf:
-                        logf.write(f"MySQL session start: {session_start_time} from {client_addr[0]}:{client_addr[1]}\n")
+                        logf.write(
+                            f"MySQL session start: {session_start_time} from {client_addr[0]}:{client_addr[1]}\n")
                     with open(history_file, 'a', encoding='utf-8') as histf:
                         histf.write(f"Session started at: {session_start_time}\n")
                 except Exception as e:
                     print(f"[MySQL蜜罐] 日志文件创建失败: {e}")
-                
+
                 messages = [
                     {"role": "system", "content": mysql_identity['prompt'] + mysql_identity.get('final_instr', '')}
                 ]
-                
+
                 try:
-                    # 简化的MySQL握手处理
-                    # 直接发送欢迎消息，跳过复杂的握手协议
-                    
-                    # MySQL初始欢迎消息
-                    welcome_msg = "Welcome to the MySQL monitor.  Commands end with ; or \\g.\n"
-                    welcome_msg += "Your MySQL connection id is 12345\n"
-                    welcome_msg += "Server version: 8.0.33 MySQL Community Server - GPL\n\n"
-                    welcome_msg += "Copyright (c) 2000, 2023, Oracle and/or its affiliates.\n\n"
-                    welcome_msg += "Oracle is a registered trademark of Oracle Corporation and/or its\n"
-                    welcome_msg += "affiliates. Other names may be trademarks of their respective\n"
-                    welcome_msg += "owners.\n\n"
-                    welcome_msg += "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n\n"
-                    welcome_msg += "mysql> "
-                    
+                    # 使用MySQL 5.7协议版本
+                    protocol_version = 10
+                    server_version = "5.7.42"  # 兼容版本
+                    connection_id = 12345
+
+                    # 能力标志（明确不支持SSL）
+                    capability_flags = (
+                            0x00000200 |  # CLIENT_PROTOCOL_41
+                            0x00000008 |  # CLIENT_CONNECT_WITH_DB
+                            0x00080000  # CLIENT_PLUGIN_AUTH
+                    )
+
+                    # 字符集和状态
+                    charset = 33  # utf8mb4
+                    status_flags = 2  # SERVER_STATUS_AUTOCOMMIT
+
+                    # 构造握手包
+                    handshake = bytearray()
+                    handshake.append(protocol_version)
+                    handshake.extend(server_version.encode() + b'\0')  # 服务器版本以NULL结尾
+                    handshake.extend(struct.pack('<I', connection_id))
+
+                    # 生成8字节随机盐值
+                    salt = os.urandom(8)
+                    handshake.extend(salt)
+                    handshake.append(0)  # 填充字节
+                    handshake.extend(struct.pack('<H', capability_flags & 0xFFFF))  # 低16位能力标志
+                    handshake.append(charset)
+                    handshake.extend(struct.pack('<H', status_flags))
+                    handshake.extend(struct.pack('<H', (capability_flags >> 16) & 0xFFFF))  # 高16位能力标志
+                    handshake.append(21)  # 认证数据长度
+                    handshake.extend(b'\0' * 10)  # 保留10字节
+                    handshake.extend(os.urandom(13))  # 剩余认证数据
+                    handshake.extend(b"mysql_native_password\0")  # 认证插件名称
+
+                    # 添加长度前缀和序列号
+                    packet_len = len(handshake)
+                    packet_header = struct.pack('<I', packet_len)[:3] + b'\x00'
+                    full_packet = packet_header + handshake
+
+                    # 发送握手包
+                    client_sock.sendall(full_packet)
+                    print(f"[MySQL蜜罐] 已发送握手包至 {client_addr}")
+
+                    # 接收客户端响应
+                    header = client_sock.recv(4)
+                    if len(header) < 4:
+                        raise ConnectionError("客户端响应不完整")
+
+                    # 解析响应长度
+                    packet_len = struct.unpack('<I', header[:3] + b'\x00')[0]
+                    seq = header[3]
+
+                    # 接收完整响应
+                    data = b''
+                    while len(data) < packet_len:
+                        chunk = client_sock.recv(packet_len - len(data))
+                        if not chunk:
+                            raise ConnectionError("客户端断开连接")
+                        data += chunk
+
+                    print(f"[MySQL蜜罐] 收到客户端认证包，长度: {packet_len}")
+
+                    # 解析客户端能力标志
+                    if len(data) >= 4:
+                        client_capability = struct.unpack('<I', data[:4])[0]
+                        print(f"[MySQL蜜罐] 客户端能力标志: {hex(client_capability)}")
+
+                    # 模拟认证成功 - 发送OK包
+                    ok_packet = bytearray()
+                    ok_packet.append(0)  # OK包标识
+                    ok_packet.extend(b'\x00\x00')  # 影响行数
+                    ok_packet.extend(b'\x00\x00')  # 最后插入ID
+                    ok_packet.extend(struct.pack('<H', status_flags))  # 状态标志
+                    ok_packet.extend(b'\x00\x00')  # 警告数
+
+                    # 添加长度前缀和序列号
+                    ok_packet_len = len(ok_packet)
+                    full_ok_packet = struct.pack('<I', ok_packet_len)[:3] + struct.pack('B', seq + 1) + ok_packet
+                    client_sock.sendall(full_ok_packet)
+                    print("[MySQL蜜罐] 已发送认证成功响应")
+
                     # 发送欢迎消息
-                    client_sock.sendall(welcome_msg.encode())
-                    with open(log_file, 'a', encoding='utf-8') as logf:
-                        logf.write(f"[BANNER] {welcome_msg}\n")
-                    with open(history_file, 'a', encoding='utf-8') as histf:
-                        histf.write(f"{welcome_msg}\n")
-                        
-                except Exception as e:
-                    print(f"[MySQL蜜罐] 握手失败: {e}")
-                    client_sock.close()
-                    return
-                
-                while True:
-                    try:
-                        data = b''
-                        while not data.endswith(b'\n') and not data.endswith(b'\r\n'):
-                            chunk = client_sock.recv(1024)
-                            if not chunk:
-                                raise ConnectionError('客户端断开连接')
-                            data += chunk
-                        command = data.decode(errors='ignore').strip()
-                        if not command:
+                    welcome_msg = "\n".join([
+                        "Welcome to the MySQL monitor.  Commands end with ; or \\g.",
+                        "Your MySQL connection id is 12345",
+                        "Server version: 5.7.42 MySQL Community Server (GPL)",
+                        "",
+                        "Copyright (c) 2000, 2025, Oracle and/or its affiliates.",
+                        "",
+                        "Oracle is a registered trademark of Oracle Corporation and/or its",
+                        "affiliates. Other names may be trademarks of their respective",
+                        "owners.",
+                        "",
+                        "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.",
+                        "",
+                        "mysql> "
+                    ]).encode('utf-8')
+
+                    # 添加长度前缀和序列号
+                    # welcome_packet_len = len(welcome_msg)
+                    # welcome_header = struct.pack('<I', welcome_packet_len)+ struct.pack('B', seq + 2)
+                    client_sock.send(welcome_msg)
+                    print("[MySQL蜜罐] 已发送欢迎消息")
+
+                    current_seq = seq + 3
+                    while True:
+                        try:
+                            # 接收命令包头部 (修复点)
+                            header = client_sock.recv(4)
+                            if len(header) == 0:  # 客户端主动断开
+                                print("[MySQL蜜罐] 客户端主动断开连接")
+                                break
+                            if len(header) < 4:
+                                raise ConnectionError(f"命令包头部不完整，收到{len(header)}字节")
+
+                            # 包长度解析和数据处理（保持原逻辑）
+                            packet_len = struct.unpack('<I', header[:3] + b'\x00')[0]
+                            seq_num = header[3]
+
+                            data = b''
+                            while len(data) < packet_len:
+                                chunk = client_sock.recv(packet_len - len(data))
+                                if not chunk:  # 接收中途断开
+                                    raise ConnectionError("数据接收中客户端断开")
+                                data += chunk
+
+                            # 命令解析和处理（保持原逻辑）
+                            if data:
+                                command_type = data[0]
+                                command_content = data[1:].decode('utf-8', errors='ignore').strip()
+                            else:
+                                command_content = ''
+
+                            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            print(f"[MySQL蜜罐] 收到命令: {command_content}")
+
+                            # 记录命令
+                            with open(log_file, 'a', encoding='utf-8') as logf:
+                                logf.write(f"[{now}] [CMD] {command_content}\n")
+                            with open(history_file, 'a', encoding='utf-8') as histf:
+                                histf.write(f"mysql> {command_content}\n")
+
+                            # 处理QUIT命令
+                            if command_content.lower() in ("quit", "exit", "\\q"):
+                                # 发送再见消息
+                                goodbye = "Bye\n".encode('utf-8')
+                                goodbye_header = struct.pack('<I', len(goodbye))[:3] + struct.pack('B', current_seq)
+                                client_sock.sendall(goodbye_header + goodbye)
+                                break
+
+                            # 调用LLM生成响应
+                            messages.append({"role": "user", "content": command_content})
+                            try:
+                                response = openai_client.chat.completions.create(
+                                    model=mysql_model,
+                                    messages=messages,
+                                    temperature=mysql_temp,
+                                    max_tokens=mysql_max_tokens
+                                )
+                                ai_response = response.choices[0].message.content
+                            except Exception as e:
+                                ai_response = f"ERROR 2006 (HY000): MySQL server has gone away: {str(e)}"
+
+                            # 确保响应以换行符结尾
+                            if not ai_response.endswith('\n'):
+                                ai_response += '\n'
+
+                            # 添加mysql>提示符
+                            ai_response += "mysql> "
+
+                            # 记录响应
+                            with open(log_file, 'a', encoding='utf-8') as logf:
+                                logf.write(f"[{now}] [RESP] {ai_response}\n")
+                            with open(history_file, 'a', encoding='utf-8') as histf:
+                                histf.write(f"{ai_response}\n")
+
+                            # 发送响应（添加长度前缀和序列号）
+                            response_bytes = ai_response.encode('utf-8')
+                            response_header = struct.pack('<I', len(response_bytes))[:3] + struct.pack('B', current_seq)
+                            client_sock.sendall(response_header + response_bytes)
+                            current_seq += 1
+
+                        except socket.timeout:
+                            print("[MySQL蜜罐] 命令接收超时，等待客户端输入...")
                             continue
-                        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        with open(log_file, 'a', encoding='utf-8') as logf:
-                            logf.write(f"[{now}] [CMD] {command}\n")
-                        with open(history_file, 'a', encoding='utf-8') as histf:
-                            histf.write(f"mysql> {command}\n")
-                        messages.append({"role": "user", "content": command})
-                        try:
-                            response = openai_client.chat.completions.create(
-                                model=mysql_model,
-                                messages=messages,
-                                temperature=mysql_temp,
-                                max_tokens=mysql_max_tokens
-                            )
-                            ai_response = response.choices[0].message.content
                         except Exception as e:
-                            ai_response = f"ERROR 2006 (HY000): MySQL server has gone away: {e}\nmysql> "
-                        with open(log_file, 'a', encoding='utf-8') as logf:
-                            logf.write(f"[{now}] [RESP] {ai_response}\n")
-                        with open(history_file, 'a', encoding='utf-8') as histf:
-                            histf.write(f"{ai_response}\n")
-                        try:
-                            client_sock.sendall(ai_response.encode())
-                        except Exception as e:
-                            print(f"[MySQL蜜罐] 发送响应失败: {e}")
+                            print(f"[MySQL蜜罐] 命令处理错误: {e}")
                             break
-                        if command.lower() in ("quit", "exit", "\\q"):
-                            break
-                    except Exception as e:
-                        print(f"[MySQL蜜罐] 处理命令异常: {e}")
-                        break
-                client_sock.close()
-                with open(log_file, 'a', encoding='utf-8') as logf:
-                    logf.write(f"MySQL session end: {datetime.now()}\n")
+
+                except ConnectionError as ce:
+                    print(f"[MySQL蜜罐] 连接异常: {ce}")
+                except Exception as e:
+                    print(f"[MySQL蜜罐] 处理错误: {e}")
+                finally:
+                    client_sock.close()
+                    print("[MySQL蜜罐] 客户端连接已关闭")
+                    with open(log_file, 'a', encoding='utf-8') as logf:
+                        logf.write(f"MySQL session end: {datetime.now()}\n")
+
             server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind(('0.0.0.0', mysql_port))
             server_sock.listen(50)
             print(f"MySQL蜜罐服务启动在端口 {mysql_port}")
+
             while True:
                 try:
                     client_sock, client_addr = server_sock.accept()
+                    client_sock.settimeout(30.0)  # 设置超时
                     print(f"[MySQL蜜罐] 接受连接: {client_addr}")
-                    t = threading.Thread(target=handle_mysql_client, args=(client_sock, client_addr))
-                    t.daemon = True
-                    t.start()
+                    threading.Thread(
+                        target=handle_mysql_client,
+                        args=(client_sock, client_addr),
+                        daemon=True
+                    ).start()
                 except Exception as e:
-                    print(f"[MySQL蜜罐] 主循环异常: {e}")
-                    continue
+                    print(f"[MySQL蜜罐] 接受连接错误: {e}")
         threading.Thread(target=start_mysql, daemon=True).start()
-        
+
         # 处理SSH连接
         while True:
             client_socket, addr = ssh_server.accept()
