@@ -17,21 +17,6 @@ import csv
 from flask import Response
 import io
 
-# 导入ids_llm模块以获取token状态
-try:
-    from ids_llm import token_monitor
-except ImportError:
-    # 如果导入失败，创建一个模拟的token监控器
-    class MockTokenMonitor:
-        def get_token_status(self):
-            return {
-                "total_tokens_used": 0,
-                "daily_tokens_used": 0,
-                "token_limit": 1000000,
-                "is_limit_exceeded": False,
-                "remaining_tokens": 1000000
-            }
-    token_monitor = MockTokenMonitor()
 
 # 禁用 Flask 的开发服务器警告(消除WARNING)
 #log = logging.getLogger('werkzeug')
@@ -313,7 +298,6 @@ class PacketSniffer(threading.Thread):
                         socketio.emit('event', {'type': 'event', 'event': event_data})
                         print(f"[ALERT] Detected raw traffic match: {event_data}")
 
-
 # 监控类
 class Monitor(threading.Thread):
     def __init__(self, rule_engine):
@@ -387,7 +371,7 @@ def before_request():
             'request_data': request_data
         })
 
-# 首页路由
+# 仪表盘路由
 @app.route('/')
 @login_required
 def index():
@@ -453,9 +437,13 @@ def add_rule():
     event_type = request.form.get('event_type')
     severity = request.form.get('severity')
     enabled = int(request.form.get('enabled', 1))
-
     conn = sqlite3.connect('packet_stats.db')
     c = conn.cursor()
+    # 查重
+    c.execute("SELECT 1 FROM rules WHERE name=? AND pattern=? AND category=?", (rule_name, pattern, event_type))
+    if c.fetchone():
+        conn.close()
+        return jsonify({"status": "error", "message": "规则已存在，不能重复添加"})
     try:
         c.execute("INSERT INTO rules (name, pattern, category, severity, enabled) VALUES (?, ?, ?, ?, ?)",
                   (rule_name, pattern, event_type, severity, enabled))
@@ -640,6 +628,7 @@ def get_events():
     event_type = request.args.get('event_type')
     severity = request.args.get('severity')
     ip_address = request.args.get('ip_address')
+    search = request.args.get('search')
 
     conn = sqlite3.connect('packet_stats.db')
     c = conn.cursor()
@@ -660,6 +649,16 @@ def get_events():
     if ip_address:
         conditions.append("ip_address = ?")
         values.append(ip_address)
+    if search:
+        like = f"%{search}%"
+        conditions.append("(" + " OR ".join([
+            "event_type LIKE ?",
+            "ip_address LIKE ?",
+            "request_path LIKE ?",
+            "request_method LIKE ?",
+            "severity LIKE ?"
+        ]) + ")")
+        values.extend([like]*5)
 
     where_clause = " AND ".join(conditions) if conditions else "1=1"
 
@@ -682,7 +681,9 @@ def get_events():
             'id': row[0],
             'timestamp': row[2],
             'ip_address': row[3],
-            'rule_name': row[9],
+            'request_path': row[5],
+            'request_method': row[6],
+            'event_type': row[9],
             'severity': row[7],
             'status': row[8]
         })
@@ -843,32 +844,6 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
-
-# Token状态监控API路由
-@app.route('/api/token_status', methods=['GET'])
-@login_required
-def get_token_status():
-    """获取当前token使用状态"""
-    try:
-        status = token_monitor.get_token_status()
-        return jsonify(status)
-    except Exception as e:
-        return jsonify({
-            "error": "获取token状态失败",
-            "message": str(e),
-            "total_tokens_used": 0,
-            "daily_tokens_used": 0,
-            "token_limit": 1000000,
-            "is_limit_exceeded": False,
-            "remaining_tokens": 1000000
-        })
-
-# LLM分析状态页面
-@app.route('/llm_status')
-@login_required
-def llm_status():
-    """LLM分析状态页面"""
-    return render_template('llm_status.html')
 
 # WebSocket连接处理
 @socketio.on('connect')
@@ -1553,31 +1528,9 @@ def get_chart_data():
             'labels': ['暴力破解', 'SQL注入', 'XSS攻击', '命令注入', '其他'],
             'data': [ssh_count, mysql_count, http_count, 0, 0]  # 简化的分类
         }
-        # 地理分布数据（基于IP）
-        cursor.execute("""
-            SELECT ip, COUNT(*) as count FROM (
-                SELECT src_ip as ip FROM ssh_session
-                UNION ALL
-                SELECT client_ip as ip FROM http_session
-                UNION ALL
-                SELECT src_ip as ip FROM mysql_session
-                UNION ALL
-                SELECT src_ip as ip FROM pop3_session
-            ) WHERE ip IS NOT NULL AND ip != ''
-            GROUP BY ip
-            ORDER BY count DESC
-            LIMIT 10
-        """)
-        geo_data = []
-        for row in cursor.fetchall():
-            geo_data.append({
-                'name': row[0],
-                'value': row[1]
-            })
         return jsonify({
             'service_distribution': service_distribution,
-            'attack_types': attack_types,
-            'geo_distribution': geo_data
+            'attack_types': attack_types
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1666,6 +1619,139 @@ def get_mysql_sessions():
         cursor.close()
         conn.close()
 
+# 实时日志API，返回最新日志
+@app.route('/api/realtime-logs', methods=['GET'])
+@login_required
+def api_realtime_logs():
+    level = request.args.get('level', 'all')
+    conn = sqlite3.connect('packet_stats.db')
+    c = conn.cursor()
+    # 正确映射前端日志级别到数据库severity
+    level_map = {
+        'info': 'low',
+        'warning': 'medium',
+        'error': 'high'
+    }
+    where_clause = ''
+    values = []
+    if level != 'all' and level in level_map:
+        where_clause = 'WHERE LOWER(severity) = ?'
+        values = [level_map[level]]
+    query = f'''
+        SELECT id, timestamp, ip_address, user_agent, request_path, request_method, request_data, severity, status, event_type
+        FROM events
+        {where_clause}
+        ORDER BY timestamp DESC
+        LIMIT 50
+    '''
+    c.execute(query, values)
+    logs = []
+    for row in c.fetchall():
+        try:
+            req_data = json.loads(row[6]) if row[6] else {}
+        except Exception:
+            req_data = {}
+        # 反向映射severity为前端level
+        severity = (row[7] or '').lower()
+        if severity == 'low':
+            level_str = 'info'
+        elif severity == 'medium':
+            level_str = 'warning'
+        elif severity == 'high':
+            level_str = 'error'
+        else:
+            level_str = 'info'
+        logs.append({
+            'timestamp': row[1],
+            'source': row[9] or row[4] or '蜜罐',
+            'message': req_data.get('msg') or req_data.get('payload') or row[4] or row[5] or '无详细信息',
+            'level': level_str,
+            'ip': row[2] or req_data.get('ip') or '-',
+        })
+    conn.close()
+    return jsonify(logs)
+
+# 新增 /api/index-stats 接口
+@app.route('/api/index-stats', methods=['GET'])
+def api_index_stats():
+    conn = sqlite3.connect('packet_stats.db')
+    c = conn.cursor()
+    # 事件分类统计
+    c.execute("SELECT event_type, COUNT(*) FROM events GROUP BY event_type")
+    event_type_stats = [{'type': row[0] or '未知', 'count': row[1]} for row in c.fetchall()]
+    # 最近30天事件趋势
+    c.execute("""
+        SELECT strftime('%Y-%m-%d', timestamp) as day, COUNT(*)
+        FROM events
+        WHERE timestamp >= date('now', '-29 days')
+        GROUP BY day
+        ORDER BY day ASC
+    """)
+    trend = [{'date': row[0], 'count': row[1]} for row in c.fetchall()]
+    conn.close()
+    return jsonify({
+        'event_type_stats': event_type_stats,
+        'trend': trend
+    })
+
+@app.route('/api/session-trend', methods=['GET'])
+def api_session_trend():
+    time_range = int(request.args.get('time_range', 24))  # 小时数，默认24小时
+    conn = sqlite3.connect('packet_stats.db')
+    c = conn.cursor()
+    now = datetime.now()
+    labels = []
+    ssh_sessions, http_sessions, mysql_sessions, pop3_sessions = [], [], [], []
+    for i in range(time_range-1, -1, -1):
+        t_start = (now - timedelta(hours=i)).replace(minute=0, second=0, microsecond=0)
+        t_end = t_start + timedelta(hours=1)
+        labels.append(t_start.strftime('%Y-%m-%d %H:00'))
+        # SSH
+        c.execute("SELECT COUNT(*) FROM ssh_session WHERE time_date >= ? AND time_date < ?", (t_start, t_end))
+        ssh_sessions.append(c.fetchone()[0])
+        # HTTP
+        c.execute("SELECT COUNT(*) FROM http_session WHERE start_time >= ? AND start_time < ?", (t_start, t_end))
+        http_sessions.append(c.fetchone()[0])
+        # MySQL
+        c.execute("SELECT COUNT(*) FROM mysql_session WHERE time_date >= ? AND time_date < ?", (t_start, t_end))
+        mysql_sessions.append(c.fetchone()[0])
+        # POP3
+        c.execute("SELECT COUNT(*) FROM pop3_session WHERE time_date >= ? AND time_date < ?", (t_start, t_end))
+        pop3_sessions.append(c.fetchone()[0])
+    conn.close()
+    return jsonify({
+        'labels': labels,
+        'ssh_sessions': ssh_sessions,
+        'http_sessions': http_sessions,
+        'mysql_sessions': mysql_sessions,
+        'pop3_sessions': pop3_sessions
+    })
+
+# 新增API：获取去重后的规则列表
+@app.route('/api/rules', methods=['GET'])
+@login_required
+def api_rules():
+    conn = sqlite3.connect('packet_stats.db')
+    c = conn.cursor()
+    # 只取规则名+模式+类型唯一的最新一条
+    c.execute('''
+        SELECT id, name, pattern, category, severity, enabled
+        FROM rules
+        GROUP BY name, pattern, category
+        ORDER BY id DESC
+    ''')
+    rules = [
+        {
+            'id': row[0],
+            'name': row[1],
+            'pattern': row[2],
+            'category': row[3],
+            'severity': row[4],
+            'enabled': bool(row[5])
+        } for row in c.fetchall()
+    ]
+    conn.close()
+    return jsonify(rules)
 
 if __name__ == '__main__':
     init_db()
