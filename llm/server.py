@@ -135,59 +135,6 @@ def handle_cd_command(user_input, current_dir, username):
     return current_dir
 
 
-def format_ai_response(response, command):
-    """格式化AI响应，使其更符合真实Linux命令的输出格式"""
-    # 移除可能的多余提示符和命令前缀
-    response = re.sub(r'\$\s*$', '', response)
-    response = re.sub(r'^.*?\$\s*', '', response)  # 移除开头的提示符
-    response = re.sub(r'^.*?\$\s*', '', response)  # 再次移除，以防有多层
-
-    # 根据命令类型进行特殊处理
-    command_lower = command.lower().strip()
-
-    if command_lower == 'ls' or command_lower.startswith('ls '):
-        # ls命令格式化
-        lines = response.split('\n')
-        formatted_lines = []
-        for line in lines:
-            line = line.strip()
-            if line and not line.startswith('$') and not line.startswith(command_lower):
-                # 确保ls输出格式正确
-                if not re.match(r'^[d-][rwx-]{9}\s+\d+', line):
-                    # 如果不是标准ls格式，尝试格式化
-                    if os.path.basename(line):
-                        formatted_lines.append(line)
-                else:
-                    formatted_lines.append(line)
-        return '\n'.join(formatted_lines) if formatted_lines else response
-
-    elif command_lower == 'pwd':
-        # pwd命令应该只返回路径
-        path_match = re.search(r'/([^/\s]+/?)*', response)
-        if path_match:
-            return path_match.group(0)
-        return response.strip()
-
-    elif command_lower == 'whoami':
-        # whoami命令应该只返回用户名
-        # 移除可能包含的命令本身
-        cleaned_response = re.sub(r'^whoami\s*', '', response)
-        username_match = re.search(r'\b\w+\b', cleaned_response)
-        if username_match:
-            return username_match.group(0)
-        return cleaned_response.strip()
-
-    elif command_lower.startswith('cat ') or command_lower.startswith('head ') or command_lower.startswith('tail '):
-        # 文件内容命令，保持原格式但清理命令前缀
-        return re.sub(r'^.*?\$\s*', '', response)
-
-    elif command_lower in ['clear', 'reset']:
-        # 清屏命令
-        return '\033[2J\033[H'  # ANSI清屏序列
-
-    else:
-        # 其他命令，保持原格式但清理多余内容
-        return response.strip()
 
 def main():
     try:

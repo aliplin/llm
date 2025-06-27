@@ -30,42 +30,15 @@ def handle_cd_command(user_input, current_dir, username):
                 return os.path.join(current_dir, new_dir)
     return current_dir
 
-# AI响应格式化
 
-def format_ai_response(response, command):
-    response = re.sub(r'\$\s*$', '', response)
-    response = re.sub(r'^.*?\$\s*', '', response)
-    response = re.sub(r'^.*?\$\s*', '', response)
-    command_lower = command.lower().strip()
-    if command_lower == 'ls' or command_lower.startswith('ls '):
-        lines = response.split('\n')
-        formatted_lines = []
-        for line in lines:
-            line = line.strip()
-            if line and not line.startswith('$') and not line.startswith(command_lower):
-                if not re.match(r'^[d-][rwx-]{9}\s+\d+', line):
-                    if os.path.basename(line):
-                        formatted_lines.append(line)
-                else:
-                    formatted_lines.append(line)
-        return '\n'.join(formatted_lines) if formatted_lines else response
-    elif command_lower == 'pwd':
-        path_match = re.search(r'/([^/\s]+/?)*', response)
-        if path_match:
-            return path_match.group(0)
-        return response.strip()
-    elif command_lower == 'whoami':
-        cleaned_response = re.sub(r'^whoami\s*', '', response)
-        username_match = re.search(r'\b\w+\b', cleaned_response)
-        if username_match:
-            return username_match.group(0)
-        return cleaned_response.strip()
-    elif command_lower.startswith('cat ') or command_lower.startswith('head ') or command_lower.startswith('tail '):
-        return re.sub(r'^.*?\$\s*', '', response)
-    elif command_lower in ['clear', 'reset']:
-        return '\033[2J\033[H'
-    else:
-        return response.strip()
+def format_shell_output(text):
+    # 去除多余空行和首尾空格，合并多余换行
+    lines = [line.rstrip() for line in text.splitlines()]
+    while lines and lines[0] == '':
+        lines.pop(0)
+    while lines and lines[-1] == '':
+        lines.pop()
+    return '\r\n'.join(lines)
 
 # SSH蜜罐主类
 class HoneyPotServer(ServerInterface):
@@ -228,69 +201,64 @@ class HoneyPotServer(ServerInterface):
         return False
 
     def handle_shell(self):
-        # 构建LLM交互环境
         personality = self.identity['prompt'] + self.identity['final_instr']
         fixed_identity = f"User is {self.username}@{self.hostname}. "
         initial_prompt = f"Your personality is: {fixed_identity}{personality}"
         messages = [{"role": "system", "content": initial_prompt}]
-
-        # 初始化目录状态
         current_dir = f"/home/{self.username}"
         self.input_buffer = ""
-
-        # 发送欢迎信息
         client_ip = self.channel.getpeername()[0] if self.channel else "unknown"
-        welcome_msg = f"Last login: {today.strftime('%a %b %d %H:%M:%S %Y')} from {client_ip}\n"
-        welcome_msg += "Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-100-generic x86_64)\n\n"
-        welcome_msg += " * Documentation:  https://help.ubuntu.com/\n"
-        welcome_msg += " * Management:     https://landscape.canonical.com\n"
-        welcome_msg += " * Support:        https://ubuntu.com/advantage\n\n"
-        welcome_msg += "  System information as of " + today.strftime('%a %b %d %H:%M:%S %Y') + "\n\n"
-        welcome_msg += "  System load:  0.52              Users logged in:       1\n"
-        welcome_msg += "  Usage of /:   23.4% of 251.0GB  IPv4 address:         192.168.1.100\n"
-        welcome_msg += "  Memory usage: 45%               System uptime:         2 days\n"
-        welcome_msg += "  Swap usage:   0%\n\n"
-        welcome_msg += "0 updates can be applied immediately.\n\n"
-        welcome_msg += "The list of available updates is more than a week old.\n"
-        welcome_msg += "To check for new updates run: sudo apt update\n\n"
-
-        self.channel.send(welcome_msg)
-        if self.debug: print("[SSH蜜罐] 欢迎信息已发送")
-
-        # 构建命令提示符
-        display_dir = current_dir
-        if current_dir.startswith(f"/home/{self.username}"):
-            display_dir = "~" + current_dir[len(f"/home/{self.username}"):]
-        prompt = f"{self.username}@{self.hostname}:{display_dir}$ "
-        self.channel.send(prompt)
-        if self.debug: print(f"[SSH蜜罐] 已发送提示符: {prompt}")
-
-        # 命令交互循环
+        welcome_lines = [
+            f"Last login: {today.strftime('%a %b %d %H:%M:%S %Y')} from {client_ip}\r\n",
+            f"Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-100-generic x86_64)\r\n",
+            "\r\n",
+            " * Documentation:  https://help.ubuntu.com/\r\n",
+            " * Management:     https://landscape.canonical.com\r\n",
+            " * Support:        https://ubuntu.com/advantage\r\n",
+            "\r\n",
+            f"  System information as of {today.strftime('%a %b %d %H:%M:%S %Y')}\r\n",
+            "\r\n",
+            "  System load:  0.52    Users logged in:    1\r\n",
+            "  Usage of /:   23.4% of 251.0GB    IPv4 address: 192.168.1.100\r\n",
+            "  Memory usage: 45%      System uptime: 2 days\r\n",
+            "  Swap usage:   0%\r\n",
+            "",
+            "0 updates can be applied immediately.\r\n",
+            "The list of available updates is more than a week old.\r\n",
+            "To check for new updates run: sudo apt update\r\n",
+            "\r\n"
+        ]
+        def send_prompt():
+            prompt_display_dir = current_dir
+            if current_dir.startswith(f"/home/{self.username}"):
+                prompt_display_dir = "~" + current_dir[len(f"/home/{self.username}"):]
+            prompt = f"{self.username}@{self.hostname}:{prompt_display_dir}$ "
+            self.channel.send(prompt)
+        self.channel.send(format_shell_output("".join(welcome_lines)) + "\r\n")
+        send_prompt()
         while self.running and self.channel is not None and self.channel.active:
-
-            # 接收用户命令（事件驱动方式）
             command = self.read_until_newline()
-            if not command:
-                if self.debug: print("[SSH蜜罐] 收到空命令，继续循环")
-                continue  # 连接关闭或出错
-
-            print(f"[SSH蜜罐] 收到命令: {command}")
-
-            # 处理cd命令
-            current_dir = handle_cd_command(command, current_dir, self.username)
-
-            # 退出命令处理
-            if command.lower() in ("exit", "logout", "\q"):
-                self.channel.send("logout\nConnection to 127.0.0.1 closed.\n")
-                self.running = False
-                if self.debug: print("[SSH蜜罐] 收到退出命令")
+            if command is None:
                 break
-
-            # 调用LLM生成响应
+            command = command.rstrip('\r\n')
+            if command.strip() == "":
+                send_prompt()
+                continue
+            print(f"[SSH蜜罐] 收到命令: {command}")
+            current_dir = handle_cd_command(command, current_dir, self.username)
+            cmd_lower = command.strip().lower()
+            if cmd_lower in ("exit", "logout", "\q"):
+                print("触发！！！！！！@@@")
+                self.channel.send(format_shell_output("\r\nlogout") + "\r\n")
+                self.running = False
+                break
+            if cmd_lower == "clear":
+                self.channel.send("\033[2J\033[H")
+                send_prompt()
+                continue
             messages.append({"role": "user", "content": command})
             try:
                 if self.debug: print(f"[SSH蜜罐] 正在调用LLM API，命令: {command}")
-
                 response = self.openai_client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
@@ -298,36 +266,26 @@ class HoneyPotServer(ServerInterface):
                     max_tokens=self.max_tokens
                 )
                 ai_response = response.choices[0].message.content
-
                 if self.debug: print(f"[SSH蜜罐] LLM原始响应: {repr(ai_response)}")
-
-                # # 格式化AI响应，使其更逼真
-                # formatted_response = format_ai_response(ai_response, command)
-                #
-                # if self.debug: print(f"[SSH蜜罐] 格式化后响应: {repr(formatted_response)}")
-
-                # 发送响应给客户端
-                self.channel.send(ai_response)
+                formatted = format_shell_output(ai_response)
+                self.channel.send("\r\n"+formatted + "\r\n")
                 messages.append({"role": "assistant", "content": ai_response})
                 if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(ai_response)}")
-
-                # 记录交互到historySSH文件
                 try:
                     with open(self.history_ssh_file, "a", encoding="utf-8") as f:
+                        display_dir = current_dir
                         f.write(f"{self.username}@{self.hostname}:{display_dir}$ {command}\n")
                         f.write(f"{ai_response}\n")
                     if self.debug: print(f"[SSH蜜罐] 交互已记录到: {self.history_ssh_file}")
                 except Exception as e:
                     print(f"[SSH蜜罐] 记录交互历史失败: {e}")
-
             except Exception as e:
-                error_msg = f"bash: {command}: command not found\n"
-                self.channel.send(error_msg)
+                error_msg = format_shell_output(f"bash: {command}: command not found")
+                self.channel.send(error_msg + "\r\n")
                 print(f"[SSH蜜罐] LLM调用失败，发送默认错误消息: {e}")
-                # 不要因为单个命令失败就结束会话，继续循环
+                send_prompt()
                 continue
-
-        # 关闭连接
+            send_prompt()
         if self.channel is not None:
             self.channel.close()
         print(f"[SSH蜜罐] 连接已关闭")
@@ -357,7 +315,7 @@ class HoneyPotServer(ServerInterface):
                 # 处理特殊字符
                 if char == '\r' or char == '\n':  # 回车或换行键
                     # 发送换行符给客户端，让用户看到换行
-                    self.channel.send('\n')
+                    self.channel.send("\r\n")
                     if self.debug: print(f"[SSH蜜罐] 收到回车/换行键，返回命令: {repr(buffer)}")
                     return buffer.strip()
                 elif char == '\x7f':  # 退格键 (Backspace)
@@ -368,7 +326,7 @@ class HoneyPotServer(ServerInterface):
                         if self.debug: print(f"[SSH蜜罐] 退格，缓冲区: {repr(buffer)}")
                 elif char == '\x03':  # Ctrl+C
                     buffer = ""
-                    self.channel.send('\n')
+                    self.channel.send("\r\n")
                     if self.debug: print("[SSH蜜罐] 收到Ctrl+C")
                     return ""
                 elif char == '\x04':  # Ctrl+D (EOF)
