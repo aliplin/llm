@@ -381,6 +381,9 @@
         let visiblePackets = []; // 当前可见的数据包
         let packetHeight = 160; // 每个数据包行的高度，增加高度避免内容挤压
         let packetLimit = 100; // 默认显示100条
+        let allEvents = [];
+        let eventPage = 1;
+        let eventPerPage = 20;
 
         // 初始化吞吐量图表
         function initChart() {
@@ -490,66 +493,15 @@
 
         // 处理事件
         socket.on('event', (data) => {
-            if (!isMonitoring) return;
-
+            if (!isMonitoring) {
+                // 暂停时不接收新事件，但不影响已渲染事件的交互
+                return;
+            }
             eventCounter++;
             document.getElementById('eventCount').textContent = eventCounter;
-
-            // 根据严重级别设置不同的样式
-            let severityClass = 'severity-high';
-            if (data.event.severity === 'medium') {
-                severityClass = 'severity-medium';
-            } else if (data.event.severity === 'low') {
-                severityClass = 'severity-low';
-            }
-
-            const eventList = document.getElementById('eventList');
-            const eventItem = document.createElement('div');
-            eventItem.className = `${severityClass} py-3 px-4 new-item mb-2 rounded-lg`;
-            eventItem.innerHTML = `
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div class="flex-1">
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                                <p class="text-xs text-gray-500">时间</p>
-                                <p class="font-medium">${data.event.time}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">IP地址</p>
-                                <p class="font-medium">${data.event.ip}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">规则名称</p>
-                                <p class="font-medium">${data.event.rule_name}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">严重级别</p>
-                                <p class="font-medium ${data.event.severity === 'high' ? 'text-danger' : data.event.severity === 'medium' ? 'text-warning' : 'text-info'}">${data.event.severity}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button class="btn btn-outline text-xs view-event-details" data-details="${JSON.stringify(data.event)}">
-                            <i class="fa fa-info-circle mr-1"></i> 查看详情
-                        </button>
-                        <button class="btn btn-danger text-xs block-ip" data-ip="${data.event.ip}">
-                            <i class="fa fa-ban mr-1"></i> 阻止IP
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            // 如果列表为空，先清空初始提示信息
-            if (eventList.querySelector('.text-center')) {
-                eventList.innerHTML = '';
-            }
-
-            eventList.prepend(eventItem);
-
-            // 限制列表长度，避免内存占用过多
-            if (eventList.children.length > 100) {
-                eventList.removeChild(eventList.lastChild);
-            }
+            allEvents.unshift(data.event);
+            if (allEvents.length > 1000) allEvents.pop();
+            renderEventList();
         });
 
         // 开始监控
@@ -592,6 +544,8 @@
             document.getElementById('eventCount').textContent = '0';
             allPackets = []; // 清空搜索列表
             visiblePackets = [];
+            allEvents = [];
+            eventPage = 1;
             console.log('已清空所有数据');
         });
 
@@ -611,12 +565,9 @@
 
         // 清空事件列表
         document.getElementById('clearEventList').addEventListener('click', () => {
-            document.getElementById('eventList').innerHTML = `
-                <div class="text-center text-gray-400 py-10">
-                    <i class="fa fa-shield text-4xl mb-2"></i>
-                    <p>日志已清空</p>
-                </div>
-            `;
+            allEvents = [];
+            eventPage = 1;
+            renderEventList();
             eventCounter = 0;
             document.getElementById('eventCount').textContent = '0';
         });
@@ -825,53 +776,96 @@
             }
         });
 
-        // 查看事件详情
+        // 渲染事件列表（带分页）
+        function renderEventList() {
+            const eventList = document.getElementById('eventList');
+            eventList.innerHTML = '';
+            const start = (eventPage - 1) * eventPerPage;
+            const end = Math.min(start + eventPerPage, allEvents.length);
+            if (allEvents.length === 0) {
+                eventList.innerHTML = `<div class="text-center text-gray-400 py-10"><i class="fa fa-shield text-4xl mb-2"></i><p>暂无事件</p></div>`;
+                document.getElementById('eventPagination').innerHTML = '';
+                return;
+            }
+            for (let i = start; i < end; i++) {
+                const data = allEvents[i];
+                let severityClass = 'severity-high';
+                if (data.severity === 'medium') severityClass = 'severity-medium';
+                else if (data.severity === 'low') severityClass = 'severity-low';
+                const eventItem = document.createElement('div');
+                eventItem.className = `${severityClass} py-3 px-4 new-item mb-2 rounded-lg`;
+                eventItem.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div><p class="text-xs text-gray-500">时间</p><p class="font-medium">${data.time}</p></div>
+                                <div><p class="text-xs text-gray-500">IP地址</p><p class="font-medium">${data.ip}</p></div>
+                                <div><p class="text-xs text-gray-500">规则名称</p><p class="font-medium">${data.rule_name}</p></div>
+                                <div><p class="text-xs text-gray-500">严重级别</p><p class="font-medium ${data.severity === 'high' ? 'text-danger' : data.severity === 'medium' ? 'text-warning' : 'text-info'}">${data.severity}</p></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button class="btn btn-outline text-xs view-event-details" data-details='${JSON.stringify(data)}'><i class="fa fa-info-circle mr-1"></i> 查看详情</button>
+                            <button class="btn btn-danger text-xs block-ip" data-ip="${data.ip}"><i class="fa fa-ban mr-1"></i> 阻止IP</button>
+                        </div>
+                    </div>
+                `;
+                eventList.appendChild(eventItem);
+            }
+            renderEventPagination();
+        }
+        // 渲染事件分页按钮
+        function renderEventPagination() {
+            const container = document.getElementById('eventPagination');
+            if (!container) return;
+            container.innerHTML = '';
+            const totalPages = Math.ceil(allEvents.length / eventPerPage);
+            if (totalPages <= 1) return;
+            // 上一页
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'w-8 h-8 mx-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100';
+            prevBtn.innerHTML = '<i class="fa fa-angle-left"></i>';
+            prevBtn.disabled = eventPage <= 1;
+            prevBtn.onclick = () => { eventPage--; renderEventList(); };
+            container.appendChild(prevBtn);
+            // 页码按钮（最多显示5页）
+            let start = Math.max(1, eventPage - 2);
+            let end = Math.min(totalPages, start + 4);
+            if (end - start < 4) start = Math.max(1, end - 4);
+            for (let i = start; i <= end; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'w-8 h-8 mx-1 rounded border ' + (i === eventPage ? 'bg-primary text-white' : 'border-gray-300 hover:bg-gray-100');
+                btn.textContent = i;
+                btn.onclick = () => { eventPage = i; renderEventList(); };
+                container.appendChild(btn);
+            }
+            // 下一页
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'w-8 h-8 mx-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100';
+            nextBtn.innerHTML = '<i class="fa fa-angle-right"></i>';
+            nextBtn.disabled = eventPage >= totalPages;
+            nextBtn.onclick = () => { eventPage++; renderEventList(); };
+            container.appendChild(nextBtn);
+        }
+
+        // 查看事件详情（不受暂停影响）
         document.addEventListener('click', (e) => {
             if (e.target.closest('.view-event-details')) {
                 const btn = e.target.closest('.view-event-details');
                 const details = JSON.parse(btn.getAttribute('data-details'));
-
                 const modalContent = document.getElementById('eventModalContent');
                 modalContent.innerHTML = `
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-sm text-gray-500">规则ID</p>
-                            <p class="font-medium">${details.rule_id}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">规则名称</p>
-                            <p class="font-medium">${details.rule_name}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">事件类型</p>
-                            <p class="font-medium">${details.event_type}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">严重级别</p>
-                            <p class="font-medium ${details.severity === 'high' ? 'text-danger' : details.severity === 'medium' ? 'text-warning' : 'text-info'}">${details.severity}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">描述</p>
-                            <p class="font-medium">${details.description}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">匹配模式</p>
-                            <p class="font-medium">${details.matched_pattern}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">IP地址</p>
-                            <p class="font-medium">${details.ip}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">请求路径</p>
-                            <p class="font-medium">${details.path}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-500">时间</p>
-                            <p class="font-medium">${details.time}</p>
-                        </div>
+                        <div><p class="text-sm text-gray-500">规则ID</p><p class="font-medium">${details.rule_id}</p></div>
+                        <div><p class="text-sm text-gray-500">规则名称</p><p class="font-medium">${details.rule_name}</p></div>
+                        <div><p class="text-sm text-gray-500">事件类型</p><p class="font-medium">${details.event_type}</p></div>
+                        <div><p class="text-sm text-gray-500">严重级别</p><p class="font-medium ${details.severity === 'high' ? 'text-danger' : details.severity === 'medium' ? 'text-warning' : 'text-info'}">${details.severity}</p></div>
+                        <div><p class="text-sm text-gray-500">描述</p><p class="font-medium">${details.description}</p></div>
+                        <div><p class="text-sm text-gray-500">匹配模式</p><p class="font-medium">${details.matched_pattern}</p></div>
+                        <div><p class="text-sm text-gray-500">IP地址</p><p class="font-medium">${details.ip}</p></div>
+                        <div><p class="text-sm text-gray-500">请求路径</p><p class="font-medium">${details.path}</p></div>
+                        <div><p class="text-sm text-gray-500">时间</p><p class="font-medium">${details.time}</p></div>
                     </div>
-
                     <div class="mt-6">
                         <h4 class="font-bold mb-2">请求数据</h4>
                         <div class="bg-gray-50 p-4 rounded-lg text-sm">
@@ -879,7 +873,6 @@
                         </div>
                     </div>
                 `;
-
                 document.getElementById('eventDetailModal').classList.remove('hidden');
             }
         });
@@ -958,6 +951,15 @@
 
             // 初始化虚拟滚动
             updateVisiblePackets();
+
+            if (!document.getElementById('eventPagination')) {
+                const eventList = document.getElementById('eventList');
+                const pagDiv = document.createElement('div');
+                pagDiv.id = 'eventPagination';
+                pagDiv.className = 'flex justify-center items-center mt-4';
+                eventList.parentNode.appendChild(pagDiv);
+            }
+            renderEventList();
         });
     </script>
 </body>

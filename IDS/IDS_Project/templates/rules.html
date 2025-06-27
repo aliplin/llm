@@ -256,60 +256,8 @@
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for rule in rules %}
-                                <tr class="table-row border-b border-gray-100">
-                                    <td class="py-3 px-4 text-sm">#{{ rule[0] }}</td>
-                                    <td class="py-3 px-4 text-sm font-medium">{{ rule[1] }}</td>
-                                    <td class="py-3 px-4 text-sm text-sm">{{ rule[2] }}</td>
-                                    <td class="py-3 px-4 text-sm">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {{ rule[3] }}
-                                        </span>
-                                    </td>
-                                    <td class="py-3 px-4 text-sm">
-                                        {% if rule[4] == '高' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                            {{ rule[4] }}
-                                        </span>
-                                        {% elif rule[4] == '中' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            {{ rule[4] }}
-                                        </span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            {{ rule[4] }}
-                                        </span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="py-3 px-4 text-sm">
-                                        {% if rule[5] %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            启用
-                                        </span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            禁用
-                                        </span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="py-3 px-4 text-sm">
-                                        <button class="text-primary hover:text-primary/80 mr-3" onclick="editRule('{{ rule[0] }}')">
-                                            <i class="fa fa-edit"></i> 编辑
-                                        </button>
-                                        <button class="text-gray-500 hover:text-gray-700" onclick="toggleRuleStatus('{{ rule[0] }}', '{{ rule[5]|lower }}')">
-                                            {% if rule[5] %}
-                                            <i class="fa fa-toggle-on"></i> 禁用
-                                            {% else %}
-                                            <i class="fa fa-toggle-off"></i> 启用
-                                            {% endif %}
-                                        </button>
-                                        <button class="text-danger hover:text-danger/80 ml-3" onclick="deleteRule('{{ rule[0] }}')">
-                                            <i class="fa fa-trash"></i> 删除
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                            <tbody id="rulesTableBody">
+                                <!-- 动态渲染 -->
                             </tbody>
                         </table>
                     </div>
@@ -590,55 +538,43 @@
             fetch(url)
                .then(response => response.json())
                .then(data => {
-                    const tbody = document.getElementById('rulesTable').getElementsByTagName('tbody')[0];
+                    const tbody = document.getElementById('rulesTableBody');
                     tbody.innerHTML = '';
 
                     data.forEach(rule => {
                         const row = document.createElement('tr');
-                        row.className = 'table-row border-b border-gray-100';
-
-                        // 根据规则严重级别设置颜色
+                        row.className = 'table-row border-b border-gray-100 hover:bg-primary/5 transition';
                         let severityClass = '';
-                        if (rule.severity === '高') {
+                        let severityText = rule.severity;
+                        if (rule.severity === '高' || rule.severity === 'high') {
                             severityClass = 'bg-red-100 text-red-800';
-                        } else if (rule.severity === '中') {
+                            severityText = '高';
+                        } else if (rule.severity === '中' || rule.severity === 'medium') {
                             severityClass = 'bg-yellow-100 text-yellow-800';
+                            severityText = '中';
                         } else {
                             severityClass = 'bg-green-100 text-green-800';
+                            severityText = '低';
                         }
-
                         row.innerHTML = `
                             <td class="py-3 px-4 text-sm">#${rule.id}</td>
                             <td class="py-3 px-4 text-sm font-medium">${rule.name}</td>
-                            <td class="py-3 px-4 text-sm text-sm">${rule.pattern}</td>
+                            <td class="py-3 px-4 text-sm text-xs text-gray-600">${rule.pattern}</td>
                             <td class="py-3 px-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    ${rule.category}
-                                </span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${rule.category}</span>
                             </td>
                             <td class="py-3 px-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
-                                    ${rule.severity}
-                                </span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">${severityText}</span>
                             </td>
                             <td class="py-3 px-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                                    ${rule.enabled ? '启用' : '禁用'}
-                                </span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">${rule.enabled ? '启用' : '禁用'}</span>
                             </td>
                             <td class="py-3 px-4 text-sm">
-                                <button class="text-primary hover:text-primary/80 mr-3" onclick="editRule('${rule.id}')">
-                                    <i class="fa fa-edit"></i> 编辑
-                                </button>
-                                <button class="text-gray-500 hover:text-gray-700" onclick="toggleRuleStatus('${rule.id}', '${rule.enabled ? 'enabled' : 'disabled'}')">
-                                    ${rule.enabled ? '<i class="fa fa-toggle-on"></i> 禁用' : '<i class="fa fa-toggle-off"></i> 启用'}
-                                </button>
-                                <button class="text-danger hover:text-danger/80 ml-3" onclick="deleteRule('${rule.id}')">
-                                    <i class="fa fa-trash"></i> 删除
-                                </button>
+                                <button class="text-primary hover:text-primary/80 mr-3" onclick="editRule('${rule.id}')"><i class="fa fa-edit"></i> 编辑</button>
+                                <button class="text-gray-500 hover:text-gray-700" onclick="toggleRuleStatus('${rule.id}', '${rule.enabled ? 'enabled' : 'disabled'}')">${rule.enabled ? '<i class=\"fa fa-toggle-on\"></i> 禁用' : '<i class=\"fa fa-toggle-off\"></i> 启用'}</button>
+                                <button class="text-danger hover:text-danger/80 ml-3" onclick="deleteRule('${rule.id}')"><i class="fa fa-trash"></i> 删除</button>
                             </td>
                         `;
-
                         tbody.appendChild(row);
                     });
                 })
@@ -657,6 +593,65 @@
             document.getElementById('ipAddress').value = '';
             location.reload();
         }
+
+        // 动态加载规则列表并美化展示
+        function loadRules() {
+            fetch('/api/rules')
+                .then(response => response.json())
+                .then(rules => {
+                    const tbody = document.getElementById('rulesTableBody');
+                    tbody.innerHTML = '';
+                    rules.forEach(rule => {
+                        const row = document.createElement('tr');
+                        row.className = 'table-row border-b border-gray-100 hover:bg-primary/5 transition';
+                        let severityClass = '';
+                        let severityText = rule.severity;
+                        if (rule.severity === '高' || rule.severity === 'high') {
+                            severityClass = 'bg-red-100 text-red-800';
+                            severityText = '高';
+                        } else if (rule.severity === '中' || rule.severity === 'medium') {
+                            severityClass = 'bg-yellow-100 text-yellow-800';
+                            severityText = '中';
+                        } else {
+                            severityClass = 'bg-green-100 text-green-800';
+                            severityText = '低';
+                        }
+                        row.innerHTML = `
+                            <td class="py-3 px-4 text-sm">#${rule.id}</td>
+                            <td class="py-3 px-4 text-sm font-medium">${rule.name}</td>
+                            <td class="py-3 px-4 text-sm text-xs text-gray-600">${rule.pattern}</td>
+                            <td class="py-3 px-4 text-sm">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${rule.category}</span>
+                            </td>
+                            <td class="py-3 px-4 text-sm">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">${severityText}</span>
+                            </td>
+                            <td class="py-3 px-4 text-sm">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">${rule.enabled ? '启用' : '禁用'}</span>
+                            </td>
+                            <td class="py-3 px-4 text-sm">
+                                <button class="text-primary hover:text-primary/80 mr-3" onclick="editRule('${rule.id}')"><i class="fa fa-edit"></i> 编辑</button>
+                                <button class="text-gray-500 hover:text-gray-700" onclick="toggleRuleStatus('${rule.id}', '${rule.enabled ? 'enabled' : 'disabled'}')">${rule.enabled ? '<i class=\"fa fa-toggle-on\"></i> 禁用' : '<i class=\"fa fa-toggle-off\"></i> 启用'}</button>
+                                <button class="text-danger hover:text-danger/80 ml-3" onclick="deleteRule('${rule.id}')"><i class="fa fa-trash"></i> 删除</button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                });
+        }
+
+        // 搜索规则（前端过滤）
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const filter = this.value.trim().toLowerCase();
+            const rows = document.querySelectorAll('#rulesTableBody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+
+        // 页面加载时自动加载规则
+        window.addEventListener('DOMContentLoaded', loadRules);
     </script>
 </body>
 </html>
