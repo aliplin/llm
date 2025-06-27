@@ -299,11 +299,6 @@
                             <canvas id="attackTypesChart"></canvas>
                         </div>
                     </div>
-
-                    <div class="bg-white rounded-xl p-5 card-shadow">
-                        <h3><i class="fa fa-globe"></i> 地理分布</h3>
-                        <div id="geoDistributionChart" class="h-80"></div>
-                    </div>
                 </div>
 
                 <!-- 实时日志流 -->
@@ -327,7 +322,6 @@
         let serviceDistributionChart = null;
         let attackTypesChart = null;
         let sessionsTrendChart = null;
-        let geoDistributionChart = null;
 
         // 初始化仪表板
         async function initializeDashboard() {
@@ -365,7 +359,6 @@
             try {
                 const response = await fetch('/api/chart-data');
                 const data = await response.json();
-
                 // 服务分布图表
                 const serviceDistributionCtx = document.getElementById('serviceDistributionChart').getContext('2d');
                 serviceDistributionChart = new Chart(serviceDistributionCtx, {
@@ -389,7 +382,6 @@
                         }
                     }
                 });
-
                 // 攻击类型统计图表
                 const attackTypesCtx = document.getElementById('attackTypesChart').getContext('2d');
                 attackTypesChart = new Chart(attackTypesCtx, {
@@ -414,26 +406,8 @@
                         }
                     }
                 });
-
-                // 地理分布图表
-                geoDistributionChart = echarts.init(document.getElementById('geoDistributionChart'));
-                const option = {
-                    tooltip: {
-                        trigger: 'item'
-                    },
-                    series: [
-                        {
-                            type: 'map',
-                            map: 'china',
-                            data: data.geo_distribution
-                        }
-                    ]
-                };
-                geoDistributionChart.setOption(option);
-
                 // 会话趋势图表
                 await loadSessionTrendChart();
-
                 // 加载实时日志
                 await loadRealtimeLogs();
             } catch (error) {
@@ -446,33 +420,18 @@
             try {
                 const response = await fetch('/api/chart-data');
                 const data = await response.json();
-
                 // 更新服务分布图表
                 if (serviceDistributionChart) {
                     serviceDistributionChart.data.datasets[0].data = data.service_distribution.data;
                     serviceDistributionChart.update();
                 }
-
                 // 更新攻击类型图表
                 if (attackTypesChart) {
                     attackTypesChart.data.datasets[0].data = data.attack_types.data;
                     attackTypesChart.update();
                 }
-
-                // 更新地理分布图表
-                if (geoDistributionChart) {
-                    geoDistributionChart.setOption({
-                        series: [
-                            {
-                                data: data.geo_distribution
-                            }
-                        ]
-                    });
-                }
-
                 // 更新会话趋势图表
                 await loadSessionTrendChart();
-
                 // 更新实时日志
                 await loadRealtimeLogs();
             } catch (error) {

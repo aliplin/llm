@@ -118,7 +118,7 @@
             <!-- 顶部导航 -->
             <header class="bg-white border-b border-gray-200 p-5 flex items-center justify-between">
                 <div class="relative">
-                    <input type="text" placeholder="搜索事件..." class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 w-64">
+                    <input type="text" id="searchInput" placeholder="搜索事件..." class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 w-64">
                     <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
                 <div class="flex items-center gap-4">
@@ -207,6 +207,7 @@
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">时间</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">IP地址</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">请求路径</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">请求方法</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">事件类型</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">严重级别</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">操作</th>
@@ -216,27 +217,22 @@
                                 {% for event in events %}
                                 <tr class="table-row border-b border-gray-100">
                                     <td class="py-3 px-4 text-sm">#{{ event[0] }}</td>
-                                    <td class="py-3 px-4 text-sm">{{ event[1] }}</td>
                                     <td class="py-3 px-4 text-sm">{{ event[2] }}</td>
-                                    <td class="py-3 px-4 text-sm text-sm">{{ event[3] }}</td>
+                                    <td class="py-3 px-4 text-sm">{{ event[3] }}</td>
+                                    <td class="py-3 px-4 text-sm">{{ event[5] }}</td>
+                                    <td class="py-3 px-4 text-sm">{{ event[6] }}</td>
                                     <td class="py-3 px-4 text-sm">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {{ event[6] }}
+                                            {{ event[9] }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-4 text-sm">
-                                        {% if event[7] == '高' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                            {{ event[7] }}
-                                        </span>
-                                        {% elif event[7] == '中' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            {{ event[7] }}
-                                        </span>
+                                        {% if event[7] == 'high' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">高</span>
+                                        {% elif event[7] == 'medium' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">中</span>
                                         {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            {{ event[7] }}
-                                        </span>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">低</span>
                                         {% endif %}
                                     </td>
                                     <td class="py-3 px-4 text-sm">
@@ -302,36 +298,30 @@
     </div>
 
     <script>
-        function applyFilters() {
+        function applyFilters(page = 1) {
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const eventType = document.getElementById('eventType').value;
             const severity = document.getElementById('severity').value;
             const ipAddress = document.getElementById('ipAddress').value;
+            const search = document.getElementById('searchInput').value;
 
-            let url = `/api/events?`;
-            if (startDate) url += `start_date=${startDate}&`;
-            if (endDate) url += `end_date=${endDate}&`;
-            if (eventType) url += `event_type=${eventType}&`;
-            if (severity) url += `severity=${severity}&`;
-            if (ipAddress) url += `ip_address=${ipAddress}&`;
-
-            // 移除最后一个多余的 &
-            if (url.endsWith('&')) {
-                url = url.slice(0, -1);
-            }
+            let url = `/api/events?page=${page}`;
+            if (startDate) url += `&start_date=${startDate}`;
+            if (endDate) url += `&end_date=${endDate}`;
+            if (eventType) url += `&event_type=${eventType}`;
+            if (severity) url += `&severity=${severity}`;
+            if (ipAddress) url += `&ip_address=${ipAddress}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
 
             fetch(url)
                .then(response => response.json())
                .then(data => {
                     const tbody = document.getElementById('eventTableBody');
                     tbody.innerHTML = '';
-
                     data.events.forEach(event => {
                         const row = document.createElement('tr');
                         row.className = 'table-row border-b border-gray-100';
-
-                        // 根据事件严重级别设置颜色
                         let severityClass = '';
                         if (event.severity === '高') {
                             severityClass = 'bg-red-100 text-red-800';
@@ -340,12 +330,12 @@
                         } else {
                             severityClass = 'bg-green-100 text-green-800';
                         }
-
                         row.innerHTML = `
                             <td class="py-3 px-4 text-sm">#${event.id}</td>
                             <td class="py-3 px-4 text-sm">${event.timestamp}</td>
                             <td class="py-3 px-4 text-sm">${event.ip_address}</td>
                             <td class="py-3 px-4 text-sm">${event.request_path}</td>
+                            <td class="py-3 px-4 text-sm">${event.request_method}</td>
                             <td class="py-3 px-4 text-sm">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     ${event.event_type}
@@ -365,11 +355,8 @@
                                 </button>
                             </td>
                         `;
-
                         tbody.appendChild(row);
                     });
-
-                    // 更新分页
                     updatePagination(data.total, data.page, data.per_page);
                 });
         }
@@ -423,57 +410,7 @@
         }
 
         function loadEvents(page = 1) {
-            fetch(`/api/events?page=${page}`)
-               .then(response => response.json())
-               .then(data => {
-                    const tbody = document.getElementById('eventTableBody');
-                    tbody.innerHTML = '';
-
-                    data.events.forEach(event => {
-                        const row = document.createElement('tr');
-                        row.className = 'table-row border-b border-gray-100';
-
-                        // 根据事件严重级别设置颜色
-                        let severityClass = '';
-                        if (event.severity === '高') {
-                            severityClass = 'bg-red-100 text-red-800';
-                        } else if (event.severity === '中') {
-                            severityClass = 'bg-yellow-100 text-yellow-800';
-                        } else {
-                            severityClass = 'bg-green-100 text-green-800';
-                        }
-
-                        row.innerHTML = `
-                            <td class="py-3 px-4 text-sm">#${event.id}</td>
-                            <td class="py-3 px-4 text-sm">${event.timestamp}</td>
-                            <td class="py-3 px-4 text-sm">${event.ip_address}</td>
-                            <td class="py-3 px-4 text-sm">${event.request_path}</td>
-                            <td class="py-3 px-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    ${event.event_type}
-                                </span>
-                            </td>
-                            <td class="py-3 px-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
-                                    ${event.severity}
-                                </span>
-                            </td>
-                            <td class="py-3 px-4 text-sm">
-                                <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails(${event.id})">
-                                    <i class="fa fa-eye"></i> 详情
-                                </button>
-                                <button class="text-danger hover:text-danger/80" onclick="blockIP('${event.ip_address}')">
-                                    <i class="fa fa-ban"></i> 阻止
-                                </button>
-                            </td>
-                        `;
-
-                        tbody.appendChild(row);
-                    });
-
-                    // 更新分页
-                    updatePagination(data.total, data.page, data.per_page);
-                });
+            applyFilters(page);
         }
 
         function viewEventDetails(eventId) {
@@ -583,10 +520,44 @@
             document.getElementById('closeModalBtn').addEventListener('click', function() {
                 document.getElementById('eventDetailsModal').classList.add('hidden');
             });
+
+            document.getElementById('searchInput').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    applyFilters();
+                }
+            });
         });
 
         function updatePagination(total, page, per_page) {
-            // 这里可以添加分页逻辑
+            const container = document.querySelector('.flex.gap-1');
+            if (!container) return;
+            container.innerHTML = '';
+            const totalPages = Math.ceil(total / per_page);
+            // 上一页
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100';
+            prevBtn.innerHTML = '<i class="fa fa-angle-left"></i>';
+            prevBtn.disabled = page <= 1;
+            prevBtn.onclick = () => loadEvents(page - 1);
+            container.appendChild(prevBtn);
+            // 页码按钮（最多显示5页，当前页居中）
+            let start = Math.max(1, page - 2);
+            let end = Math.min(totalPages, start + 4);
+            if (end - start < 4) start = Math.max(1, end - 4);
+            for (let i = start; i <= end; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border ' + (i === page ? 'bg-primary text-white' : 'border-gray-300 hover:bg-gray-100');
+                btn.textContent = i;
+                btn.onclick = () => loadEvents(i);
+                container.appendChild(btn);
+            }
+            // 下一页
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100';
+            nextBtn.innerHTML = '<i class="fa fa-angle-right"></i>';
+            nextBtn.disabled = page >= totalPages;
+            nextBtn.onclick = () => loadEvents(page + 1);
+            container.appendChild(nextBtn);
         }
     </script>
 </body>
