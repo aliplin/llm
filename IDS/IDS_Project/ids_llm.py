@@ -3,6 +3,7 @@ import os
 import json
 import time
 import subprocess
+import requests
 from openai import OpenAI
 from scapy.all import sniff, IP, TCP
 from scapy.layers.http import HTTPRequest
@@ -12,17 +13,102 @@ import netifaces # 用于获取本机IP
 # --- 0. 全局变量定义 ---
 PVM_IP_ADDRESS = None # 将在主程序中初始化
 
-# --- 1. DeepSeek API客户端初始化 ---
-# DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_API_KEY = "sk-*******************************" # 仅为测试，请替换为环境变量或更安全的方式
-if not DEEPSEEK_API_KEY:
-    raise ValueError("请设置 DEEPSEEK_API_KEY 环境变量。")
+# --- 1. Kimi API客户端初始化 ---
+KIMI_API_KEY = "sk-1C6XrhgtvG2Y47yRYXUauXjkOHgfOLhB3WnCgSODeyHs6a5F"
+if not KIMI_API_KEY:
+    raise ValueError("请设置 KIMI_API_KEY 环境变量。")
 
-client = OpenAI(
-    api_key=DEEPSEEK_API_KEY,
-    base_url="https://api.deepseek.com",
-)
-MODEL_NAME = "deepseek-chat"
+# Token使用监控
+class TokenMonitor:
+    def __init__(self):
+        self.total_tokens_used = 0
+        self.daily_tokens_used = 0
+        self.last_reset_date = time.strftime("%Y-%m-%d")
+        self.token_limit = 1000000  # 设置每日token限制
+        self.is_token_limit_exceeded = False
+        
+    def reset_daily_count(self):
+        current_date = time.strftime("%Y-%m-%d")
+        if current_date != self.last_reset_date:
+            self.daily_tokens_used = 0
+            self.last_reset_date = current_date
+            self.is_token_limit_exceeded = False
+            print(f"[TOKEN MONITOR] 每日token计数已重置，当前日期: {current_date}")
+    
+    def add_tokens(self, tokens_used):
+        self.reset_daily_count()
+        self.total_tokens_used += tokens_used
+        self.daily_tokens_used += tokens_used
+        
+        if self.daily_tokens_used >= self.token_limit:
+            self.is_token_limit_exceeded = True
+            print(f"[TOKEN WARNING] 每日token限制已达到: {self.daily_tokens_used}/{self.token_limit}")
+        else:
+            print(f"[TOKEN INFO] 今日已使用: {self.daily_tokens_used}/{self.token_limit} tokens")
+    
+    def can_make_request(self):
+        self.reset_daily_count()
+        return not self.is_token_limit_exceeded
+    
+    def get_token_status(self):
+        self.reset_daily_count()
+        return {
+            "total_tokens_used": self.total_tokens_used,
+            "daily_tokens_used": self.daily_tokens_used,
+            "token_limit": self.token_limit,
+            "is_limit_exceeded": self.is_token_limit_exceeded,
+            "remaining_tokens": max(0, self.token_limit - self.daily_tokens_used)
+        }
+
+# 初始化token监控器
+token_monitor = TokenMonitor()
+
+def call_kimi_api(messages, tools=None, tool_choice="auto"):
+    """调用Kimi API"""
+    if not token_monitor.can_make_request():
+        print("[TOKEN LIMIT] 已达到每日token限制，跳过API调用")
+        return None
+    
+    client = OpenAI(
+        api_key="sk-1C6XrhgtvG2Y47yRYXUauXjkOHgfOLhB3WnCgSODeyHs6a5F",
+        base_url="https://api.moonshot.cn/v1",
+    )
+    
+    try:
+        # 准备API调用参数
+        api_params = {
+            "model": "moonshot-v1-8k",
+            "messages": messages,
+            "temperature": 0.3,
+        }
+        
+        # 如果提供了工具，添加到参数中
+        if tools:
+            api_params["tools"] = tools
+            api_params["tool_choice"] = tool_choice
+        
+        completion = client.chat.completions.create(**api_params)
+        
+        # 估算token使用量（简单估算）
+        estimated_tokens = sum(len(str(msg.get('content', ''))) // 4 for msg in messages)
+        if tools:
+            estimated_tokens += sum(len(str(tool)) // 4 for tool in tools)
+        
+        token_monitor.add_tokens(estimated_tokens)
+        
+        # 返回完整的响应对象
+        return {
+            'choices': [{
+                'message': {
+                    'content': completion.choices[0].message.content,
+                    'tool_calls': getattr(completion.choices[0].message, 'tool_calls', None)
+                }
+            }]
+        }
+        
+    except Exception as e:
+        print(f"[KIMI API ERROR] 调用Kimi API失败: {e}")
+        return None
 
 # --- 2. 工具定义 (供LLM使用) ---
 tools = [
@@ -133,6 +219,10 @@ def execute_tool_call(tool_call):
 
 def handle_llm_interaction(initial_prompt_content: str):
     """管理与LLM的多轮对话，处理工具调用"""
+    if not token_monitor.can_make_request():
+        print("[TOKEN LIMIT] 已达到每日token限制，跳过LLM分析")
+        return
+    
     messages = [{"role": "user", "content": initial_prompt_content}]
     
     print(f"\n--- LLM交互开始 ---")
@@ -143,32 +233,32 @@ def handle_llm_interaction(initial_prompt_content: str):
     for turn in range(MAX_TURNS):
         print(f"\n[LLM Turn {turn + 1}]")
         try:
-            response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto" 
-            )
-            response_message = response.choices[0].message
+            response = call_kimi_api(messages, tools, "auto")
+            if not response:
+                print("[LLM ERROR] Kimi API调用失败")
+                break
+                
+            response_message = response.get('choices', [{}])[0].get('message', {})
             messages.append(response_message)
 
-            if response_message.tool_calls:
-                print(f"LLM (请求工具调用)>\t{[tc.function.name for tc in response_message.tool_calls]}")
+            if response_message.get('tool_calls'):
+                tool_calls = response_message['tool_calls']
+                print(f"LLM (请求工具调用)>\t{[tc.get('function', {}).get('name') for tc in tool_calls]}")
                 
                 tool_messages_for_next_turn = []
-                for tool_call in response_message.tool_calls:
+                for tool_call in tool_calls:
                     tool_execution_result_str = execute_tool_call(tool_call)
-                    print(f"Agent (工具执行结果)>\t{tool_call.function.name} result: {tool_execution_result_str[:200]}...")
+                    print(f"Agent (工具执行结果)>\t{tool_call.get('function', {}).get('name')} result: {tool_execution_result_str[:200]}...")
                     tool_messages_for_next_turn.append({
                         "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_call.function.name,
+                        "tool_call_id": tool_call.get('id'),
+                        "name": tool_call.get('function', {}).get('name'),
                         "content": tool_execution_result_str
                     })
                 
                 messages.extend(tool_messages_for_next_turn)
             else:
-                print(f"LLM (最终回复)>\t{response_message.content}")
+                print(f"LLM (最终回复)>\t{response_message.get('content', '')}")
                 break 
         except Exception as e:
             print(f"[LLM交互错误] 发生错误: {e}")
@@ -233,7 +323,7 @@ def generate_ssh_activity_summary_prompt(remote_ip, event_summary):
     b. **次要行动**: 在调用 `block_ip_address` 后，再调用 `prepare_admin_notification` 工具，报告已执行的封禁和事件详情。
 
 2.  如果计数或比率未达到上述极端水平，但组合起来仍然可疑（例如，SYN计数在5-9次之间，且SYN/FIN比率 > 2.0），则认为这是潜在威胁，需要人工审核。在这种情况下：
-    a. 调用 `prepare_admin_notification` 工具，并在建议中**明确指出你的判断依据**（例如，“中等频率的SYN尝试，且连接未正常关闭，SYN/FIN比率较高”）。
+    a. 调用 `prepare_admin_notification` 工具，并在建议中**明确指出你的判断依据**（例如，"中等频率的SYN尝试，且连接未正常关闭，SYN/FIN比率较高"）。
 
 3.  如果数据看起来正常（例如，低SYN计数，SYN/FIN比率接近1），则以自然语言回复你的良性判断，无需调用工具。
 
@@ -277,9 +367,14 @@ def process_packet(packet):
             
             print(f"[SSH SUMMARY] Remote IP {ip}: {json.dumps(event_summary)}")
 
-            # 使用增强后的摘要生成Prompt
-            prompt = generate_ssh_activity_summary_prompt(ip, event_summary)
-            handle_llm_interaction(prompt)
+            # 检查token限制，如果达到限制则跳过LLM分析
+            if token_monitor.can_make_request():
+                # 使用增强后的摘要生成Prompt
+                prompt = generate_ssh_activity_summary_prompt(ip, event_summary)
+                handle_llm_interaction(prompt)
+            else:
+                print(f"[TOKEN LIMIT] 跳过SSH活动分析，当前token状态: {token_monitor.get_token_status()}")
+            
             expired_ips.append(ip)
 
     for ip in expired_ips:
@@ -314,8 +409,14 @@ def process_packet(packet):
             }
             
             print(f"\n[HTTP DETECT] 捕获到来自 {src_ip} 的HTTP请求: {json.dumps(http_request_details)}")
-            initial_prompt = generate_waf_prompt(src_ip, http_request_details) 
-            handle_llm_interaction(initial_prompt)
+            
+            # 检查token限制，如果达到限制则跳过LLM分析
+            if token_monitor.can_make_request():
+                initial_prompt = generate_waf_prompt(src_ip, http_request_details) 
+                handle_llm_interaction(initial_prompt)
+            else:
+                print(f"[TOKEN LIMIT] 跳过HTTP请求分析，当前token状态: {token_monitor.get_token_status()}")
+            
             return 
         except Exception as e:
             print(f"[HTTP PARSE ERROR] {e}")
@@ -378,48 +479,93 @@ def process_packet(packet):
         return 
 
 # --- 辅助函数：获取本机IP ---
-def get_interface_ip(interface_name):
+def get_interface_ip(interface_name=None):
+    """获取网络接口IP地址，支持自动检测"""
     try:
-        addrs = netifaces.ifaddresses(interface_name)
-        if netifaces.AF_INET in addrs:
-            return addrs[netifaces.AF_INET][0]['addr']
+        # 如果没有指定接口，尝试自动检测
+        if not interface_name:
+            # 获取所有网络接口
+            interfaces = netifaces.interfaces()
+            
+            # 在Windows上，优先选择以太网接口
+            for iface in interfaces:
+                # 跳过虚拟接口和回环接口
+                if (iface.startswith('{') or 
+                    iface == 'lo' or 
+                    iface.startswith('vEthernet') or
+                    iface.startswith('VMware')):
+                    continue
+                
+                try:
+                    addrs = netifaces.ifaddresses(iface)
+                    if netifaces.AF_INET in addrs:
+                        ip = addrs[netifaces.AF_INET][0]['addr']
+                        # 跳过本地回环地址
+                        if not ip.startswith('127.'):
+                            print(f"自动检测到网络接口: {iface}, IP: {ip}")
+                            return ip, iface
+                except:
+                    continue
+            
+            # 如果没找到合适的接口，使用第一个有IPv4地址的接口
+            for iface in interfaces:
+                try:
+                    addrs = netifaces.ifaddresses(iface)
+                    if netifaces.AF_INET in addrs:
+                        ip = addrs[netifaces.AF_INET][0]['addr']
+                        if not ip.startswith('127.'):
+                            print(f"使用备选网络接口: {iface}, IP: {ip}")
+                            return ip, iface
+                except:
+                    continue
         else:
-            print(f"CRITICAL: 接口 {interface_name} 没有配置IPv4地址。")
-            return None
+            # 使用指定的接口
+            addrs = netifaces.ifaddresses(interface_name)
+            if netifaces.AF_INET in addrs:
+                ip = addrs[netifaces.AF_INET][0]['addr']
+                return ip, interface_name
+            else:
+                print(f"CRITICAL: 接口 {interface_name} 没有配置IPv4地址。")
+                return None, None
+                
     except ValueError:
         print(f"CRITICAL: 接口 {interface_name} 不存在或无法访问。")
-        return None
+        return None, None
     except Exception as e:
         print(f"CRITICAL: 获取接口 {interface_name} 的IP地址时发生未知错误: {e}")
-        return None
+        return None, None
+    
+    print("CRITICAL: 未找到可用的网络接口。")
+    return None, None
 
 # --- 6. 主程序流程 ---
 if __name__ == "__main__":
-    # 请根据你的虚拟机环境修改网络接口名称
-    pvm_interface = "ens33" 
-    
-    PVM_IP_ADDRESS = get_interface_ip(pvm_interface)
+    # 自动检测网络接口
+    PVM_IP_ADDRESS, interface_name = get_interface_ip()
     if not PVM_IP_ADDRESS:
-        print(f"错误：未能获取到接口 {pvm_interface} 的IP地址，Agent无法准确工作。程序退出。")
+        print("错误：未能获取到可用的网络接口，Agent无法准确工作。程序退出。")
         exit(1) 
-    print(f"PVM 本机IP地址 ({pvm_interface}): {PVM_IP_ADDRESS}")
+    print(f"PVM 本机IP地址 ({interface_name}): {PVM_IP_ADDRESS}")
     
     listen_filter = "tcp port 80 or tcp port 22"
     
     print(f"启动混合分析威胁检测Agent (WAF + SSH Heuristic Analysis)...")
-    print(f"监听网络接口: {pvm_interface}, 过滤器: '{listen_filter}'")
+    print(f"监听网络接口: {interface_name}, 过滤器: '{listen_filter}'")
     print(f"SSH活动观察窗口时长: {SSH_OBSERVATION_PERIOD} 秒")
-    print("请确保 DEEPSEEK_API_KEY 已正确配置。")
+    print("请确保 KIMI_API_KEY 已正确配置。")
     print("请确保已安装 scapy-http 和 netifaces: pip install scapy-http netifaces")
     print("运行此脚本通常需要 sudo 权限。")
     
+    # 显示初始token状态
+    print(f"\n[TOKEN STATUS] 初始状态: {token_monitor.get_token_status()}")
+    
     try:
-        sniff(iface=pvm_interface, prn=process_packet, store=0, filter=listen_filter)
+        sniff(iface=interface_name, prn=process_packet, store=0, filter=listen_filter)
     except PermissionError:
         print("权限错误：请使用sudo或以root用户运行此脚本以捕获网络流量。")
     except OSError as oe:
         if "No such device" in str(oe) or "evice not found" in str(oe).lower() : 
-            print(f"错误：网络接口 '{pvm_interface}' 未找到或不可用。请使用 'ip addr' 或 'ifconfig' 命令检查接口名称并更新脚本。")
+            print(f"错误：网络接口 '{interface_name}' 未找到或不可用。请使用 'ip addr' 或 'ifconfig' 命令检查接口名称并更新脚本。")
         else:
             print(f"捕获网络流量时发生操作系统错误: {oe}")
     except Exception as e:
