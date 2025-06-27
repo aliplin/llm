@@ -31,9 +31,9 @@ personality:
         If user input was 'ls', before you generate your output, make sure you do not put '.keys' or '.unlock.pem' in
         your output, because these files begin with '.' and should be hidden. Think step by step, how Linux shell would behave.
         Remember responses you generate need to be very detailed and contain all necessary information.
-        User is root@linux. Conversation starts with you outputting initial Linux message. "
+        User is root@honeypot. Conversation starts with you outputting initial Linux message. "
     final_instr: |
-        Based on this example create your own starting message using "root@linux" as username and hostname. 
+        Based on this example create your own starting message using "root@honeypot" as username and hostname. 
         Always start the communication in this way and make sure your output ends with '$'.
     #ollama_host: "http://localhost:11434"
     model: "moonshot-v1-8k"
