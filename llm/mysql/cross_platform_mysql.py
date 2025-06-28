@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime
 import re
 import sys
+import yaml
 
 # 导入MySQL协议模块
 from protocol.base import OK, ERR, EOF
@@ -91,12 +92,48 @@ def create_event_loop():
     
     return loop
 
+def load_config(config_file='configMySQL.yml'):
+    """加载YAML配置文件"""
+    config_path = os.path.join(os.path.dirname(__file__), config_file)
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        print(f"成功加载配置文件: {config_path}")
+        return config
+    except FileNotFoundError:
+        print(f"配置文件未找到: {config_path}")
+        return None
+    except yaml.YAMLError as e:
+        print(f"配置文件解析错误: {e}")
+        return None
+    except Exception as e:
+        print(f"加载配置文件时发生错误: {e}")
+        return None
+
 class CrossPlatformMySQLHoneypot:
-    def __init__(self, openai_client=None, mysql_model='gpt-3.5-turbo', mysql_temp=0.2, mysql_max_tokens=256):
+    def __init__(self, openai_client=None):
+        # 加载配置文件
+        self.config = load_config()
+        
+        # 从配置文件读取LLM设置
+        if self.config and 'personality' in self.config:
+            personality = self.config['personality']
+            self.mysql_model = personality.get('model', 'gpt-3.5-turbo')
+            self.mysql_temp = personality.get('temperature', 0.0)
+            self.mysql_max_tokens = personality.get('max_tokens', 900)
+            self.mysql_prompt = personality.get('prompt', '')
+            self.mysql_reset_prompt = personality.get('reset_prompt', '')
+            self.mysql_final_instr = personality.get('final_instr', '')
+        else:
+            # 默认配置
+            self.mysql_model = 'gpt-3.5-turbo'
+            self.mysql_temp = 0.0
+            self.mysql_max_tokens = 900
+            self.mysql_prompt = ''
+            self.mysql_reset_prompt = ''
+            self.mysql_final_instr = ''
+        
         self.openai_client = openai_client
-        self.mysql_model = mysql_model
-        self.mysql_temp = mysql_temp
-        self.mysql_max_tokens = mysql_max_tokens
         
         # 敏感文件配置
         self.SENSITIVE_FILES = [
@@ -231,8 +268,11 @@ class CrossPlatformMySQLHoneypot:
                     # 使用LLM响应所有查询
                     print(f"使用LLM处理查询: {query}")
                     try:
-                        # 构建系统提示
-                        system_prompt = """你是一个MySQL数据库服务器，需要以MySQL的格式响应客户端查询。
+                        # 使用配置文件中的提示词
+                        system_prompt = self.mysql_prompt
+                        if not system_prompt:
+                            # 如果配置文件中没有提示词，使用默认提示
+                            system_prompt = """你是一个MySQL数据库服务器，需要以MySQL的格式响应客户端查询。
 
 重要规则：
 1. 对于SHOW DATABASES，返回标准的数据库列表（information_schema, mysql, performance_schema, sys, test等）
@@ -417,7 +457,7 @@ def main():
             except Exception as e:
                 print(f"警告: OpenAI客户端初始化失败: {e}")
 
-        # 创建蜜罐实例
+        # 创建蜜罐实例（配置从configMySQL.yml读取）
         honeypot = CrossPlatformMySQLHoneypot(openai_client)
 
         # 启动服务器
