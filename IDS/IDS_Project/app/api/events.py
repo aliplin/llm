@@ -83,22 +83,22 @@ def get_events():
         for row in c.fetchall():
             # 解析request_data JSON
             try:
-                request_data = json.loads(row[6]) if row[6] else {}
+                request_data = json.loads(row[7]) if row[7] else {}
             except:
                 request_data = {}
             
             events.append({
                 'id': row[0],
-                'timestamp': row[1],
-                'ip_address': row[2] or '-',
-                'user_agent': row[3] or '-',
-                'request_path': row[4] or '-',
-                'request_method': row[5] or '-',
+                'timestamp': row[2],
+                'ip_address': row[3] or '-',
+                'user_agent': row[4] or '-',
+                'request_path': row[5] or '-',
+                'request_method': row[6] or '-',
                 'request_data': request_data,
-                'severity': row[7] or 'low',
-                'status': row[8] or '-',
-                'event_type': row[9] or '未知类型',
-                'rule_name': row[10] or '-'
+                'severity': row[8] or 'low',
+                'status': row[9] or '-',
+                'event_type': row[10] or '未知类型',
+                'rule_name': row[11] or '-'
             })
         
         return jsonify({
@@ -135,23 +135,23 @@ def get_event(event_id):
         
         # 解析request_data JSON
         try:
-            request_data = json.loads(row[6]) if row[6] else {}
+            request_data = json.loads(row[7]) if row[7] else {}
         except:
             request_data = {}
         
         event = {
             'id': row[0],
-            'timestamp': row[1],
-            'ip_address': row[2] or '-',
-            'user_agent': row[3] or '-',
-            'request_path': row[4] or '-',
-            'request_method': row[5] or '-',
+            'timestamp': row[2],
+            'ip_address': row[3] or '-',
+            'user_agent': row[4] or '-',
+            'request_path': row[5] or '-',
+            'request_method': row[6] or '-',
             'request_data': request_data,
-            'severity': row[7] or 'low',
-            'status': row[8] or '-',
-            'event_type': row[9] or '未知类型',
-            'rule_name': row[10] or '-',
-            'rule_pattern': row[11] or '-'
+            'severity': row[8] or 'low',
+            'status': row[9] or '-',
+            'event_type': row[10] or '未知类型',
+            'rule_name': row[11] or '-',
+            'rule_pattern': row[12] or '-'
         }
         
         return jsonify(event)
@@ -256,3 +256,37 @@ def get_event_types():
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
+
+@events_api_bp.route('/block_ip', methods=['POST'])
+@login_required
+def block_ip():
+    """阻止IP地址"""
+    try:
+        data = request.get_json()
+        ip_address = data.get('ip')
+        
+        if not ip_address:
+            return jsonify({"error": "缺少IP地址参数"}), 400
+        
+        # 导入规则引擎
+        from ..services.rule_engine import RuleEngine
+        rule_engine = RuleEngine()
+        
+        # 阻止IP地址（默认1小时）
+        rule_engine.block_ip(ip_address, duration=3600)
+        
+        # 更新相关事件状态
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("UPDATE events SET status = 'blocked' WHERE ip_address = ?", (ip_address,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "message": f"IP地址 {ip_address} 已被阻止",
+            "ip_address": ip_address,
+            "duration": "1小时"
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

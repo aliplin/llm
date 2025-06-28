@@ -14,7 +14,7 @@ def get_rules():
     try:
         # 使用子查询确保每个规则名称只返回一个记录（最新的）
         c.execute("""
-            SELECT r.id, r.name, r.pattern, r.description, r.severity, r.enabled, r.created_at, r.updated_at
+            SELECT r.id, r.name, r.pattern, r.description, r.severity, r.category, r.enabled, r.created_at, r.updated_at
             FROM rules r
             INNER JOIN (
                 SELECT name, MAX(id) as max_id
@@ -32,9 +32,10 @@ def get_rules():
                 'pattern': row[2],
                 'description': row[3],
                 'severity': row[4],
-                'enabled': bool(row[5]),
-                'created_at': row[6],
-                'updated_at': row[7]
+                'category': row[5] or '未知',
+                'enabled': bool(row[6]),
+                'created_at': row[7],
+                'updated_at': row[8]
             })
         
         return jsonify(rules)
@@ -58,13 +59,14 @@ def create_rule():
     
     try:
         c.execute("""
-            INSERT INTO rules (name, pattern, description, severity, enabled, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            INSERT INTO rules (name, pattern, description, severity, category, enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         """, (
             data.get('name'),
             data.get('pattern'),
             data.get('description', ''),
             data.get('severity', 'medium'),
+            data.get('category', '未知'),
             data.get('enabled', True)
         ))
         
@@ -101,13 +103,14 @@ def update_rule(rule_id):
         
         c.execute("""
             UPDATE rules 
-            SET name = ?, pattern = ?, description = ?, severity = ?, enabled = ?, updated_at = datetime('now')
+            SET name = ?, pattern = ?, description = ?, severity = ?, category = ?, enabled = ?, updated_at = datetime('now')
             WHERE id = ?
         """, (
             data.get('name'),
             data.get('pattern'),
             data.get('description', ''),
             data.get('severity', 'medium'),
+            data.get('category', '未知'),
             data.get('enabled', True),
             rule_id
         ))
@@ -190,7 +193,7 @@ def get_rule(rule_id):
     
     try:
         c.execute("""
-            SELECT id, name, pattern, description, severity, enabled, created_at, updated_at
+            SELECT id, name, pattern, description, severity, category, enabled, created_at, updated_at
             FROM rules 
             WHERE id = ?
         """, (rule_id,))
@@ -205,9 +208,10 @@ def get_rule(rule_id):
             'pattern': row[2],
             'description': row[3],
             'severity': row[4],
-            'enabled': bool(row[5]),
-            'created_at': row[6],
-            'updated_at': row[7]
+            'category': row[5] or '未知',
+            'enabled': bool(row[6]),
+            'created_at': row[7],
+            'updated_at': row[8]
         }
         
         return jsonify(rule)

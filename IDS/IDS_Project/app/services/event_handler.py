@@ -112,11 +112,14 @@ class EventHandler:
                 'matched_pattern': event_data.get('matched_pattern', '')
             }
             
-            # 发送事件通知
+            # 发送事件通知（用于实时监控页面）
             self.socketio.emit('event', {
                 'type': 'event',
                 'event': formatted_event
             })
+            
+            # 发送新事件通知（用于仪表盘页面）
+            self.socketio.emit('new_event', formatted_event)
             
             # 发送系统状态更新
             self._update_system_status()
@@ -142,15 +145,38 @@ class EventHandler:
             c.execute("SELECT severity, COUNT(*) FROM events GROUP BY severity")
             severity_counts = dict(c.fetchall())
             
+            # 获取今日事件数
+            c.execute("SELECT COUNT(*) FROM events WHERE DATE(timestamp) = DATE('now')")
+            today_result = c.fetchone()
+            today_events = today_result[0] if today_result else 0
+            
+            # 获取高风险事件数
+            c.execute("SELECT COUNT(*) FROM events WHERE severity = 'high'")
+            high_risk_result = c.fetchone()
+            high_risk_events = high_risk_result[0] if high_risk_result else 0
+            
+            # 获取事件类型数
+            c.execute("SELECT COUNT(DISTINCT event_type) FROM events WHERE event_type IS NOT NULL AND event_type != ''")
+            event_types_result = c.fetchone()
+            event_types = event_types_result[0] if event_types_result else 0
+            
             conn.close()
             
-            # 发送状态更新
+            # 发送状态更新（用于实时监控页面）
             if self.socketio:
                 self.socketio.emit('system_status', {
                     'total_events': total_events,
                     'recent_events': recent_events,
                     'severity_counts': severity_counts,
                     'timestamp': datetime.now().isoformat()
+                })
+                
+                # 发送统计数据更新（用于仪表盘页面）
+                self.socketio.emit('stats_update', {
+                    'todayEvents': today_events,
+                    'highRiskEvents': high_risk_events,
+                    'eventTypes': event_types,
+                    'totalEvents': total_events
                 })
                 
         except Exception as e:

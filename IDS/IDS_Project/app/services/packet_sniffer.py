@@ -228,10 +228,14 @@ class PacketSniffer(threading.Thread):
                     'matched_pattern': event_type
                 }
                 
+                # 发送事件通知（用于实时监控页面）
                 self.socketio.emit('event', {
                     'type': 'event',
                     'event': event_data
                 })
+                
+                # 发送新事件通知（用于仪表盘页面）
+                self.socketio.emit('new_event', event_data)
             
             self.logger.warning(f"检测到事件: {event_type} - {description}")
             

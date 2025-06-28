@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -62,6 +63,13 @@
             }
             .table-row {
                 @apply transition-all duration-300 hover:bg-gray-50;
+            }
+            .new-event-row {
+                animation: fadeIn 0.5s ease-in;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-10px); }
+                to { opacity: 1; transform: translateY(0); }
             }
         }
     </style>
@@ -289,9 +297,21 @@
     <script>
         let trendChart = null;
         let typeChart = null;
+        let socket = null;
+        let realtimeData = {
+            todayEvents: 0,
+            highRiskEvents: 0,
+            eventTypes: 0,
+            totalEvents: 0,
+            trendData: [],
+            typeData: []
+        };
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
+            // 初始化Socket.IO连接
+            initSocketConnection();
+            
             // 侧边栏切换
             document.getElementById('sidebar-toggle').addEventListener('click', function() {
                 const sidebar = document.querySelector('aside');
@@ -329,23 +349,202 @@
             loadDashboardData();
             loadRecentEvents();
             
-            // 设置定时刷新
+            // 设置定时刷新（作为备用方案）
             setInterval(() => {
-                loadDashboardData();
-                loadRecentEvents();
-            }, 30000); // 每30秒刷新一次
+                if (!socket || !socket.connected) {
+                    loadDashboardData();
+                    loadRecentEvents();
+                }
+            }, 60000); // 每60秒刷新一次（如果Socket断开）
         });
+
+        // 初始化Socket.IO连接
+        function initSocketConnection() {
+            socket = io();
+            
+            // 连接成功
+            socket.on('connect', () => {
+                console.log('Dashboard connected to server');
+            });
+            
+            // 连接断开
+            socket.on('disconnect', () => {
+                console.log('Dashboard disconnected from server');
+            });
+            
+            // 监听新事件
+            socket.on('new_event', (data) => {
+                updateDashboardRealtime(data);
+            });
+            
+            // 监听统计数据更新
+            socket.on('stats_update', (data) => {
+                updateStatsRealtime(data);
+            });
+        }
+
+        // 实时更新仪表盘数据
+        function updateDashboardRealtime(eventData) {
+            // 更新统计卡片
+            realtimeData.todayEvents++;
+            realtimeData.totalEvents++;
+            
+            // 如果是高风险事件
+            if (eventData.severity === 'high' || eventData.severity === '高') {
+                realtimeData.highRiskEvents++;
+            }
+            
+            // 更新显示
+            updateStatsDisplay();
+            
+            // 更新趋势图
+            updateTrendChartRealtime(eventData);
+            
+            // 更新事件类型图
+            updateTypeChartRealtime(eventData);
+            
+            // 更新最近事件列表
+            addRecentEventRealtime(eventData);
+        }
+
+        // 实时更新统计数据
+        function updateStatsRealtime(data) {
+            realtimeData = { ...realtimeData, ...data };
+            updateStatsDisplay();
+        }
+
+        // 更新统计显示
+        function updateStatsDisplay() {
+            document.getElementById('todayEvents').textContent = realtimeData.todayEvents;
+            document.getElementById('highRiskEvents').textContent = realtimeData.highRiskEvents;
+            document.getElementById('eventTypes').textContent = realtimeData.eventTypes;
+            document.getElementById('totalEvents').textContent = realtimeData.totalEvents;
+        }
+
+        // 实时更新趋势图
+        function updateTrendChartRealtime(eventData) {
+            if (!trendChart) return;
+            
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            
+            // 获取当前数据
+            const chartData = trendChart.data;
+            const labels = chartData.labels;
+            const data = chartData.datasets[0].data;
+            
+            // 如果标签数量超过12个，移除最旧的
+            if (labels.length >= 12) {
+                labels.shift();
+                data.shift();
+            }
+            
+            // 添加新数据点
+            labels.push(timeStr);
+            data.push(1); // 每个事件增加1
+            
+            // 更新图表
+            trendChart.update('none'); // 使用 'none' 模式避免动画延迟
+        }
+
+        // 实时更新事件类型图
+        function updateTypeChartRealtime(eventData) {
+            if (!typeChart) return;
+            
+            const chartData = typeChart.data;
+            const labels = chartData.labels;
+            const data = chartData.datasets[0].data;
+            
+            const eventType = eventData.event_type || '未知类型';
+            const typeIndex = labels.indexOf(eventType);
+            
+            if (typeIndex !== -1) {
+                // 如果类型已存在，增加计数
+                data[typeIndex]++;
+            } else {
+                // 如果类型不存在，添加新类型
+                labels.push(eventType);
+                data.push(1);
+                
+                // 添加新的颜色
+                const colors = [
+                    '#165DFF','#0FC6C2','#FF7D00','#F53F3F','#722ED1',
+                    '#00B42A','#86909C','#FFB800','#F5319D','#7C3AED'
+                ];
+                chartData.datasets[0].backgroundColor.push(colors[labels.length % colors.length]);
+            }
+            
+            // 更新图表
+            typeChart.update('none');
+        }
+
+        // 实时添加最近事件
+        function addRecentEventRealtime(eventData) {
+            const tbody = document.getElementById('recentEventsTable');
+            const timeStr = new Date(eventData.timestamp).toLocaleTimeString('zh-CN');
+            
+            // 确定严重级别的样式类
+            let severityClass = '';
+            let severityText = '';
+            if (eventData.severity === 'high' || eventData.severity === '高') {
+                severityClass = 'bg-red-100 text-red-800';
+                severityText = '高';
+            } else if (eventData.severity === 'medium' || eventData.severity === '中') {
+                severityClass = 'bg-yellow-100 text-yellow-800';
+                severityText = '中';
+            } else {
+                severityClass = 'bg-green-100 text-green-800';
+                severityText = '低';
+            }
+            
+            const newRow = document.createElement('tr');
+            newRow.className = 'table-row border-b border-gray-100 new-event-row';
+            newRow.style.animation = 'fadeIn 0.5s ease-in';
+            
+            newRow.innerHTML = `
+                <td class="py-3 px-4 text-sm">${timeStr}</td>
+                <td class="py-3 px-4 text-sm">${eventData.ip_address || '未知'}</td>
+                <td class="py-3 px-4 text-sm">${eventData.event_type || '未知'}</td>
+                <td class="py-3 px-4 text-sm">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
+                        ${severityText}
+                    </span>
+                </td>
+                <td class="py-3 px-4 text-sm">
+                    <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails(${eventData.id})">
+                        <i class="fa fa-eye"></i> 详情
+                    </button>
+                </td>
+            `;
+            
+            // 插入到表格顶部
+            tbody.insertBefore(newRow, tbody.firstChild);
+            
+            // 限制最近事件数量为10个
+            const rows = tbody.querySelectorAll('tr');
+            if (rows.length > 10) {
+                tbody.removeChild(rows[rows.length - 1]);
+            }
+            
+            // 移除动画类
+            setTimeout(() => {
+                newRow.classList.remove('new-event-row');
+            }, 500);
+        }
 
         // 加载仪表盘统计数据
         function loadDashboardData() {
             fetch('/api/dashboard/stats')
                 .then(response => response.json())
                 .then(data => {
-                    // 更新统计卡片
-                    document.getElementById('todayEvents').textContent = data.today_events || 0;
-                    document.getElementById('highRiskEvents').textContent = data.high_risk_events || 0;
-                    document.getElementById('eventTypes').textContent = data.event_types || 0;
-                    document.getElementById('totalEvents').textContent = data.total_events || 0;
+                    // 更新实时数据
+                    realtimeData.todayEvents = data.today_events || 0;
+                    realtimeData.highRiskEvents = data.high_risk_events || 0;
+                    realtimeData.eventTypes = data.event_types || 0;
+                    realtimeData.totalEvents = data.total_events || 0;
+                    
+                    // 更新显示
+                    updateStatsDisplay();
                     
                     // 加载图表数据
                     loadChartData();
@@ -360,6 +559,10 @@
             fetch('/api/index-stats')
                 .then(res => res.json())
                 .then(data => {
+                    // 保存趋势数据用于实时更新
+                    realtimeData.trendData = data.trend || [];
+                    realtimeData.typeData = data.event_type_stats || [];
+                    
                     // 事件趋势图表
                     const trendCtx = document.getElementById('eventTrendChart').getContext('2d');
                     
@@ -368,13 +571,17 @@
                         trendChart.destroy();
                     }
                     
+                    // 准备实时趋势数据（最近12个时间点）
+                    const trendLabels = data.trend ? data.trend.slice(-12).map(item => item.date) : [];
+                    const trendCounts = data.trend ? data.trend.slice(-12).map(item => item.count) : [];
+                    
                     trendChart = new Chart(trendCtx, {
                         type: 'line',
                         data: {
-                            labels: data.trend.map(item => item.date),
+                            labels: trendLabels,
                             datasets: [{
                                 label: '事件数量',
-                                data: data.trend.map(item => item.count),
+                                data: trendCounts,
                                 borderColor: '#165DFF',
                                 backgroundColor: 'rgba(22, 93, 255, 0.1)',
                                 tension: 0.4,
@@ -434,6 +641,9 @@
                             interaction: {
                                 intersect: false,
                                 mode: 'index'
+                            },
+                            animation: {
+                                duration: 300
                             }
                         }
                     });
@@ -486,7 +696,8 @@
                             cutout: '70%',
                             animation: {
                                 animateRotate: true,
-                                animateScale: true
+                                animateScale: true,
+                                duration: 300
                             }
                         }
                     });
