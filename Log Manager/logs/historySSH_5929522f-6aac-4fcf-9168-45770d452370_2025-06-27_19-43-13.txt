@@ -1,0 +1,5 @@
+Session started at: 2025-06-27 19:43:13
+root@honeypot:/home/root$ ls
+bin  boot  dev  etc  home  lib  media  mnt  opt  root  run  sbin  srv  tmp  usr  var
+root@honeypot:/home/root/./bin$ cd ./bin
+/bin

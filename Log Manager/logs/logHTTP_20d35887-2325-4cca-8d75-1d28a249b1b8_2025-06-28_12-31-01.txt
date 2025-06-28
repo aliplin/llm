@@ -1,0 +1,122 @@
+HTTP Request: {"method": "GET", "path": "/documentation", "headers": {"Host": "127.0.0.1:8080", "Connection": "keep-alive", "sec-ch-ua": "\"Microsoft Edge\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"", "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": "\"Windows\"", "Upgrade-Insecure-Requests": "1", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-User": "?1", "Sec-Fetch-Dest": "document", "Referer": "http://127.0.0.1:8080/", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"}, "client_ip": "127.0.0.1", "time": "2025-06-28 12:31:01"}
+Response: <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Soulutions - Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 0; }
+        header { background-color: #0056b3; color: white; padding: 10px 0; text-align: center; }
+        nav { background-color: #333; color: white; padding: 10px 0; text-align: center; }
+        nav a { color: white; text-decoration: none; padding: 10px 15px; margin: 0 5px; }
+        nav a:hover { background: #555; }
+        .container { width: 80%; margin: auto; padding: 20px; }
+        .doc-content { background: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        h1, h2, h3 { color: #0056b3; }
+        .section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 5px; }
+        code { background-color: #eee; padding: 2px 4px; border-radius: 3px; }
+        pre { background-color: #eee; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        footer { background: #333; color: white; text-align: center; padding: 10px 0; position: fixed; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/" style="color: white; text-decoration: none;">Tech Soulutions - TechPrint 2000</a></h1>
+    </header>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/documentation">Documentation</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+    </nav>
+    <div class="container">
+        <div class="doc-content">
+            <h2>Documentation</h2>
+            ```html
+<div>
+    <section>
+        <h3>安装指南</h3>
+        <p>为了确保您的Tech Soulutions打印机型号TS-1234顺利安装，请按照以下步骤操作：</p>
+        <ol>
+            <li>打开包装，检查所有配件是否齐全，包括打印机、电源线、USB线和用户手册。</li>
+            <li>将打印机放置在稳固平坦的表面上，确保有足够的空间进行操作和通风。</li>
+            <li>连接电源线到打印机的电源接口，并插入电源插座。</li>
+            <li>使用USB线将打印机连接到您的计算机。</li>
+            <li>打开打印机电源，等待打印机启动并进行自检。</li>
+            <li>安装随打印机附带的驱动程序，或从Tech Soulutions官网下载最新驱动程序。</li>
+            <li>按照驱动程序安装向导完成安装，确保打印机被正确识别。</li>
+        </ol>
+    </section>
+
+    <section>
+        <h3>使用说明</h3>
+        <p>以下是Tech Soulutions打印机型号TS-1234的基本使用说明：</p>
+        <ul>
+            <li>按下打印机顶部的电源按钮以开启或关闭打印机。</li>
+            <li>使用打印机前面板的控制面板选择打印任务。</li>
+            <li>通过USB或无线网络连接将打印任务发送到打印机。</li>
+            <li>检查墨盒和纸张是否充足，以避免打印中断。</li>
+            <li>使用打印机的维护功能定期清洁打印头和滚筒。</li>
+            <li>在打印设置中调整打印质量、纸张大小和其他选项以满足您的需求。</li>
+        </ul>
+    </section>
+
+    <section>
+        <h3>故障排除</h3>
+        <p>如果您的Tech Soulutions打印机型号TS-1234遇到问题，请尝试以下故障排除步骤：</p>
+        <dl>
+            <dt>打印质量差</dt>
+            <dd>检查墨盒是否需要更换，并清洁打印头。</dd>
+            <dt>纸张卡住</dt>
+            <dd>关闭打印机，小心地从进纸托盘中取出卡住的纸张。</dd>
+            <dt>无法连接到打印机</dt>
+            <dd>检查USB线或无线网络连接，并确保打印机驱动程序是最新的。</dd>
+            <dt>打印机无响应</dt>
+            <dd>重启打印机，并检查电源连接是否稳定。</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h3>技术规格</h3>
+        <p>以下是Tech Soulutions打印机型号TS-1234的技术规格：</p>
+        <table>
+            <tr>
+                <th>打印速度</th>
+                <td>每分钟20页（黑白），每分钟15页（彩色）</td>
+            </tr>
+            <tr>
+                <th>分辨率</th>
+                <td>高达4800 x 1200 dpi</td>
+            </tr>
+            <tr>
+                <th>连接选项</th>
+                <td>USB 2.0，802.11b/g/n无线网络</td>
+            </tr>
+            <tr>
+                <th>纸张容量</th>
+                <td>250页标准进纸托盘</td>
+            </tr>
+            <tr>
+                <th>墨盒类型</th>
+                <td>四色独立墨盒系统</td>
+            </tr>
+            <tr>
+                <th>尺寸</th>
+                <td>长455mm x 宽343mm x 高147mm</td>
+            </tr>
+            <tr>
+                <th>重量</th>
+                <td>5.2公斤</td>
+            </tr>
+        </table>
+    </section>
+</div>
+```
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 Tech Soulutions. All rights reserved.</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,135 @@
+HTTP Request: {"method": "GET", "path": "/documentation", "headers": {"Host": "127.0.0.1:8080", "Connection": "keep-alive", "sec-ch-ua": "\"Microsoft Edge\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"", "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": "\"Windows\"", "Upgrade-Insecure-Requests": "1", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-User": "?1", "Sec-Fetch-Dest": "document", "Referer": "http://127.0.0.1:8080/", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"}, "client_ip": "127.0.0.1", "time": "2025-06-28 12:08:17"}
+Response: HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Soulutions - TechPrint 2000 Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #0056b3;
+            color: white;
+            padding: 10px 20px;
+        }
+        header h1 {
+            margin: 0;
+        }
+        nav {
+            background-color: #ddd;
+            padding: 10px;
+        }
+        nav ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        nav ul li {
+            display: inline;
+            margin-right: 10px;
+        }
+        nav a {
+            text-decoration: none;
+            color: #333;
+        }
+        .container {
+            padding: 20px;
+        }
+        footer {
+            background-color: #0056b3;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+        h2 {
+            color: #0056b3;
+        }
+        p {
+            line-height: 1.6;
+        }
+        .box {
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .highlight {
+            background-color: #eef;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Tech Soulutions - TechPrint 2000</h1>
+    </header>
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/documentation">Documentation</a></li>
+        </ul>
+    </nav>
+    <div class="container">
+        <h2>TechPrint 2000 Documentation</h2>
+        <div class="box">
+            <h3>Introduction</h3>
+            <p>Welcome to the TechPrint 2000 documentation. Tech Soulutions is proud to present this high-quality printer, designed for efficiency and reliability. Our printer is equipped with the latest technology to meet all your printing needs.</p>
+            <p>TechPrint 2000 is a state-of-the-art printer that offers high-resolution printing, fast processing, and low energy consumption. It is the perfect choice for both home and office use.</p>
+        </div>
+        <div class="box">
+            <h3>Features</h3>
+            <ul>
+                <li>High-speed printing up to 30 pages per minute</li>
+                <li>Wireless and USB connectivity</li>
+                <li>Automatic duplex printing</li>
+                <li>High-capacity paper tray</li>
+                <li>Energy-saving mode</li>
+            </ul>
+        </div>
+        <div class="box">
+            <h3>Setup and Installation</h3>
+            <p>To set up your TechPrint 2000, follow these simple steps:</p>
+            <ol>
+                <li>Unbox the printer and remove all packaging materials.</li>
+                <li>Connect the power cord and turn on the printer.</li>
+                <li>Install the ink cartridges as per the instructions provided.</li>
+                <li>Download and install the latest printer drivers from our website.</li>
+                <li>Connect your device to the printer via USB or Wi-Fi.</li>
+            </ol>
+        </div>
+        <div class="box">
+            <h3>Troubleshooting</h3>
+            <p>Here are some common issues and their solutions:</p>
+            <ul>
+                <li>Paper jam: Check the paper tray and remove any jammed paper carefully.</li>
+                <li>Printer not printing: Ensure the printer is connected and has sufficient ink.</li>
+                <li>Poor print quality: Clean the print head and check for any clogged nozzles.</li>
+            </ul>
+        </div>
+        <div class="box">
+            <h3>Technical Specifications</h3>
+            <p>Model: TechPrint 2000</p>
+            <p>Print Resolution: Up to 4800 x 1200 dpi</p>
+            <p>Print Speed: Up to 30 ppm (black) / 25 ppm (color)</p>
+            <p>Connectivity: Hi-Speed USB 2.0, Wireless 802.11b/g/n</p>
+            <p>Paper Input Capacity: 250 sheets</p>
+            <p>Dimensions: 18.1 x 13.2 x 7.3 inches</p>
+            <p>Weight: 16.5 lbs</p>
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 Tech Soulutions. All rights reserved.</p>
+    </footer>
+</body>
+</html>

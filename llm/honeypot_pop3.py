@@ -3,6 +3,7 @@ import uuid
 import threading
 from datetime import datetime
 import socket
+import openai
 
 def start_pop3(openai_client, pop3_identity, pop3_model, pop3_temp, pop3_max_tokens):
     logs_dir = os.path.join(os.path.dirname(__file__), "..", "Log Manager", "logs")
@@ -51,8 +52,12 @@ def start_pop3(openai_client, pop3_identity, pop3_model, pop3_temp, pop3_max_tok
                 with open(history_file, 'a', encoding='utf-8') as histf:
                     histf.write(f"> {command}\n")
                 messages.append({"role": "user", "content": command})
+                MAX_HISTORY = 7  # 包括系统提示+3轮对话
+                if len(messages) > MAX_HISTORY:
+                    # 保留 system prompt 和最后3轮对话
+                    messages = [messages[0]] + messages[-(MAX_HISTORY - 1):]
                 try:
-                    response = openai_client.chat.completions.create(
+                    response = openai.ChatCompletion.create(
                         model=pop3_model,
                         messages=messages,
                         temperature=pop3_temp,

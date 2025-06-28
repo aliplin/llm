@@ -1,0 +1,4 @@
+Session started at: 2025-06-27 20:01:00
+root@honeypot:/home/root/./bin$ cd ./bin
+[root@honeypot ~]$ cd /bin
+[root@honeypot bin]$

@@ -1,0 +1,23 @@
+Session started at: 2025-06-27 20:06:55
+root@honeypot:/home/root$ ls
+total 4
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 bin
+drwxr-xr-x 4 root root 4096 Jan  1 00:00 boot
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 dev
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 etc
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 home
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 lib
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 media
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 mnt
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 opt
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 proc
+drwx------ 2 root root 4096 Jan  1 00:00 root
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 run
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 sbin
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 srv
+drwxr-xr-x 2 root root 4096 Jan  1 00:00 sys
+drwxrwxrwt 2 root root 4096 Jan  1 00:00 tmp
+drwxr-xr-x 6 root root 4096 Jan  1 00:00 usr
+drwxr-xr-x 5 root root 4096 Jan  1 00:00 var
+root@honeypot:/home/root/./bin$ cd ./bin
+

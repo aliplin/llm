@@ -1,0 +1,50 @@
+HTTP Request: {"method": "GET", "path": "/", "headers": {"Host": "127.0.0.1:8080", "Connection": "keep-alive", "sec-ch-ua": "\"Microsoft Edge\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"", "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": "\"Windows\"", "Upgrade-Insecure-Requests": "1", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-User": "?1", "Sec-Fetch-Dest": "document", "Referer": "http://127.0.0.1:8080/contact", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"}, "client_ip": "127.0.0.1", "time": "2025-06-28 12:16:55"}
+Response: <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrintVibe - PV-450</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 0; }
+        header { background-color: #0056b3; color: white; padding: 10px 0; text-align: center; }
+        nav { background-color: #333; color: white; padding: 10px 0; text-align: center; }
+        nav a { color: white; text-decoration: none; padding: 10px 15px; margin: 0 5px; }
+        nav a:hover { background: #555; }
+        .container { width: 80%; margin: auto; padding: 20px; }
+        .main-content { background: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        h1, h2 { color: #0056b3; }
+        .features { background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .features ul { padding-left: 20px; }
+        .features li { margin: 8px 0; }
+        footer { background: #333; color: white; text-align: center; padding: 10px 0; position: fixed; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/" style="color: white; text-decoration: none;">PrintVibe - PV-450</a></h1>
+    </header>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/documentation">Documentation</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+    </nav>
+    <div class="container">
+        <div class="main-content">
+            <h2>Welcome to PrintVibe</h2>
+            <p>Welcome to PrintVibe, where quality meets innovation.</p>
+            <div class="features">
+                <h3>Key Features:</h3>
+                <ul>
+                    <ul><li>High-speed printing</li><li>Wireless connectivity</li><li>Eco-friendly toner</li><li>Auto-duplex printing</li><li>User-friendly interface</li></ul>
+                </ul>
+            </div>
+            <p>The PV-450 is our flagship printer, designed for businesses seeking efficiency and reliability. With its advanced features and robust performance, it's the perfect choice for your office needs.</p>
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 PrintVibe. All rights reserved.</p>
+    </footer>
+</body>
+</html>
