@@ -1,0 +1,4 @@
+Session started at: 2025-06-28 09:37:46.412208
+mysql> KILL QUERY 12345
+ERROR 1146 (42S02): Table doesn't exist
+

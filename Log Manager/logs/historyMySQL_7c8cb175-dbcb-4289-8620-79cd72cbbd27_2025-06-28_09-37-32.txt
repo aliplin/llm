@@ -1,0 +1,10 @@
+Session started at: 2025-06-28 09:37:32.800367
+mysql> select @@version_comment limit 1
++----------------+
+| @@version_comment |
++----------------+
+| 'MySQL Enterprise Edition' |
++----------------+
+
+mysql>
+

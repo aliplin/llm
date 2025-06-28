@@ -1,0 +1,7 @@
+MySQL session start: 2025-06-28 09:37:45.230185 from 127.0.0.1:5374
+[2025-06-28 09:37:45] [CMD] show
+[2025-06-28 09:37:45] [RESP] ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'show' at line 1
+
+mysql>
+
+MySQL session end: 2025-06-28 09:37:46.528822
