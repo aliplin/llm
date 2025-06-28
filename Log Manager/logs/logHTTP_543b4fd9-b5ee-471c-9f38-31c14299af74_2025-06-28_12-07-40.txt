@@ -1,0 +1,82 @@
+HTTP Request: {"method": "GET", "path": "/", "headers": {"Host": "127.0.0.1:8080", "Connection": "keep-alive", "Cache-Control": "max-age=0", "sec-ch-ua": "\"Microsoft Edge\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"", "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": "\"Windows\"", "Upgrade-Insecure-Requests": "1", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7", "Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-User": "?1", "Sec-Fetch-Dest": "document", "Accept-Encoding": "gzip, deflate, br, zstd", "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"}, "client_ip": "127.0.0.1", "time": "2025-06-28 12:07:40"}
+Response: HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Soulutions - TechPrint 2000</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        header {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px 0;
+            text-align: center;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+        nav {
+            background: #333;
+            color: white;
+            padding: 10px 0;
+            text-align: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            padding: 0 15px;
+        }
+        nav a:hover {
+            background-color: #555;
+        }
+        .content {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Tech Soulutions - TechPrint 2000</h1>
+    </header>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/documentation">Documentation</a>
+    </nav>
+    <div class="container">
+        <div class="content">
+            <h2>Welcome to Tech Soulutions</h2>
+            <p>Tech Soulutions is a leading manufacturer of high-quality printing solutions. Our flagship product, the TechPrint 2000, is designed to meet the demands of modern businesses with its advanced features and reliable performance.</p>
+            <p>Key Features:</p>
+            <ul>
+                <li>High-speed printing up to 30 pages per minute</li>
+                <li>Wireless and Ethernet connectivity</li>
+                <li>Duplex printing to save paper</li>
+                <li>Built-in scanner and copier</li>
+                <li>Energy-efficient operation</li>
+            </ul>
+            <p>Discover how TechPrint 2000 can streamline your workflow and improve productivity. Contact us today for more information or to place an order.</p>
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 Tech Soulutions. All rights reserved.</p>
+    </footer>
+</body>
+</html>

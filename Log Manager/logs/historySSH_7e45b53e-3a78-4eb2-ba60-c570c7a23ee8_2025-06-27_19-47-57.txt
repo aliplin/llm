@@ -1,0 +1,18 @@
+Session started at: 2025-06-27 19:47:57
+root@honeypot:/home/root/./bin$ cd ./bin
+[root@honeypot ~]$ cd ./bin
+[root@honeypot ./bin]$
+root@honeypot:/home/root/./bin$ ls
+total 24
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 bash
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 cat
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 cp
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 echo
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 ls
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 mkdir
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 mv
+-rwxr-xr-x. 1 root root 4096 Mar 23 09:00 rm
+[root@honeypot ./bin]$
+root@honeypot:/home/root/./bin\..$ cd ..
+[root@honeypot ./bin]$ cd ..
+[root@honeypot ~]$

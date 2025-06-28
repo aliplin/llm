@@ -1,0 +1,13 @@
+Session started at: 2025-06-27 19:28:06
+root@honeypot:/home/root$ ls
+root@honeypot:~# ls
+bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  root  run  sbin  srv  tmp  usr  var
+
+root@honeypot:~#
+root@honeypot:/home/root/./bin$ cd ./bin
+root@honeypot:~# cd ./bin
+
+root@honeypot:/bin# ls
+bash  coreutils  ld  ldd  lib64  libnss  libxcrypt  locale  sash  util-linux
+
+root@honeypot:/bin#

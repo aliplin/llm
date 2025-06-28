@@ -1,0 +1,50 @@
+HTTP Request: {"method": "GET", "path": "/contact", "headers": {"Host": "127.0.0.1:8080", "User-Agent": "python-requests/2.31.0", "Accept-Encoding": "gzip, deflate, br", "Accept": "*/*", "Connection": "keep-alive"}, "client_ip": "127.0.0.1", "time": "2025-06-28 12:29:55"}
+Response: <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Soulutions - TechPrint 2000</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 0; }
+        header { background-color: #0056b3; color: white; padding: 10px 0; text-align: center; }
+        nav { background-color: #333; color: white; padding: 10px 0; text-align: center; }
+        nav a { color: white; text-decoration: none; padding: 10px 15px; margin: 0 5px; }
+        nav a:hover { background: #555; }
+        .container { width: 80%; margin: auto; padding: 20px; }
+        .main-content { background: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        h1, h2 { color: #0056b3; }
+        .features { background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .features ul { padding-left: 20px; }
+        .features li { margin: 8px 0; }
+        footer { background: #333; color: white; text-align: center; padding: 10px 0; position: fixed; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/" style="color: white; text-decoration: none;">Tech Soulutions - TechPrint 2000</a></h1>
+    </header>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/documentation">Documentation</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+    </nav>
+    <div class="container">
+        <div class="main-content">
+            <h2>Welcome to Tech Soulutions</h2>
+            <p>Welcome to Tech Soulutions, leading manufacturer of high-quality printing solutions.</p>
+            <div class="features">
+                <h3>Key Features:</h3>
+                <ul>
+                    <li>High-speed printing up to 30 ppm</li><li>1200 dpi resolution</li><li>Wireless and Ethernet connectivity</li><li>Duplex printing</li><li>Touchscreen display</li>
+                </ul>
+            </div>
+            <p>The TechPrint 2000 is designed to meet the demands of modern businesses with its robust performance and user-friendly interface.</p>
+        </div>
+    </div>
+    <footer>
+        <p>&copy; 2025 Tech Soulutions. All rights reserved.</p>
+    </footer>
+</body>
+</html>
