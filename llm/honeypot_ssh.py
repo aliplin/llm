@@ -6,6 +6,7 @@ from datetime import datetime
 import paramiko
 from paramiko import ServerInterface, Transport
 import select
+import openai
 
 SSH_PORT = 5656
 SSH_USER = "root"
@@ -14,6 +15,7 @@ today = datetime.now()
 line_ending="\r\n"
 # 目录切换命令处理
 
+#目录切换模拟
 def handle_cd_command(user_input, current_dir, username):
     if user_input.startswith("cd "):
         new_dir = user_input[3:].strip()
@@ -30,7 +32,7 @@ def handle_cd_command(user_input, current_dir, username):
                 return os.path.join(current_dir, new_dir)
     return current_dir
 
-
+#对Shell输出进行格式化，清理多余的空行和空格，生成更加整洁的终端输出内容
 def format_shell_output(text):
     # 去除多余空行和首尾空格，合并多余换行
     lines = [line.rstrip() for line in text.splitlines()]
@@ -39,6 +41,7 @@ def format_shell_output(text):
     while lines and lines[-1] == '':
         lines.pop()
     return f'{line_ending}'.join(lines)
+
 
 def format_ai_response(response, command):
     import re, os
@@ -291,9 +294,11 @@ class HoneyPotServer(ServerInterface):
             if command.strip() == "":
                 send_prompt()
                 continue
+
             print(f"[SSH蜜罐] 收到命令: {command}")
             current_dir = handle_cd_command(command, current_dir, self.username)
             cmd_lower = command.strip().lower()
+
             if cmd_lower in ("exit", "logout", "\q"):
                 self.channel.send(format_shell_output(f"{line_ending}logout") + f"{line_ending}")
                 self.running = False
@@ -302,10 +307,15 @@ class HoneyPotServer(ServerInterface):
                 self.channel.send("\033[2J\033[H")
                 send_prompt()
                 continue
+            if cmd_lower.startswith("cd "):
+                send_prompt()
+                continue
+
             messages.append({"role": "user", "content": command})
+
             try:
                 if self.debug: print(f"[SSH蜜罐] 正在调用LLM API，命令: {command}")
-                response = self.openai_client.chat.completions.create(
+                response = openai.ChatCompletion.create(
                     model=self.model_name,
                     messages=messages,
                     temperature=self.temperature,
@@ -313,28 +323,27 @@ class HoneyPotServer(ServerInterface):
                 )
                 ai_response = response.choices[0].message.content
                 if self.debug: print(f"[SSH蜜罐] LLM原始响应: {repr(ai_response)}")
-                # 过滤AI响应中的命令行提示符和多余换行
                 ai_response = format_ai_response(ai_response, command)
                 formatted = format_shell_output(ai_response)
-                if formatted=='':
-                    self.channel.send(formatted)
-                else:
+                if formatted.strip():
                     self.channel.send(formatted + f"{line_ending}")
-                messages.append({"role": "assistant", "content": ai_response})
-                if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(ai_response)}")
-                try:
-                    with open(self.history_ssh_file, "a", encoding="utf-8") as f:
-                        display_dir = current_dir
-                        f.write(f"{self.username}@{self.hostname}:{display_dir}$ {command}\n")
-                        f.write(f"{ai_response}\n")
-                    if self.debug: print(f"[SSH蜜罐] 交互已记录到: {self.history_ssh_file}")
-                except Exception as e:
-                    print(f"[SSH蜜罐] 记录交互历史失败: {e}")
+                    messages.append({"role": "assistant", "content": ai_response})
+                    if self.debug: print(f"[SSH蜜罐] LLM响应已发送，长度: {len(ai_response)}")
+                    # 写入历史
+                    try:
+                        with open(self.history_ssh_file, "a", encoding="utf-8") as f:
+                            display_dir = current_dir
+                            f.write(f"{self.username}@{self.hostname}:{display_dir}$ {command}\n")
+                            f.write(f"{ai_response}\n")
+                    except Exception as e:
+                        print(f"[SSH蜜罐] 记录交互历史失败: {e}")
+                else:
+                    self.channel.send("")
+                    if self.debug: print("[SSH蜜罐] AI响应为空，跳过记录assistant消息")
             except Exception as e:
                 error_msg = format_shell_output(f"bash: {command}: command not found")
                 self.channel.send(error_msg + f"{line_ending}")
                 print(f"[SSH蜜罐] LLM调用失败，发送默认错误消息: {e}")
-                continue
             send_prompt()
         if self.channel is not None:
             self.channel.close()
@@ -437,8 +446,9 @@ class HoneyPotServer(ServerInterface):
         else:
             super().auth_response(success)
 
-# SSH连接处理
 
+
+# SSH连接处理
 def handle_ssh_connection(client_socket, openai_client, identity, model_name,
                           temperature, max_tokens, output_dir, log_file, username, hostname):
     try:
