@@ -126,23 +126,23 @@
             <nav class="p-4">
                 <div class="mb-6">
                     <p class="text-xs uppercase text-gray-400 font-semibold px-4 mb-3">主菜单</p>
-                    <a href="{{ url_for('index') }}" class="sidebar-item">
+                    <a href="{{ url_for('main.index') }}" class="sidebar-item">
                         <i class="fa fa-dashboard"></i>
                         <span>仪表盘</span>
                     </a>
-                    <a href="/honeypot_log_analysis" class="sidebar-item">
+                    <a href="{{ url_for('main.honeypot_log_analysis') }}" class="sidebar-item">
                         <i class="fa fa-flask"></i>
                         <span>蜜罐网络安全日志分析</span>
                     </a>
-                    <a href="{{ url_for('events') }}" class="sidebar-item">
+                    <a href="{{ url_for('events.events') }}" class="sidebar-item">
                         <i class="fa fa-list-alt"></i>
                         <span>事件日志</span>
                     </a>
-                    <a href="{{ url_for('realtime') }}" class="sidebar-item active">
+                    <a href="{{ url_for('main.realtime') }}" class="sidebar-item active">
                         <i class="fa fa-globe"></i>
                         <span>实时监控</span>
                     </a>
-                    <a href="{{ url_for('rules') }}" class="sidebar-item">
+                    <a href="{{ url_for('rules.rules') }}" class="sidebar-item">
                         <i class="fa fa-gavel"></i>
                         <span>检测规则</span>
                     </a>
@@ -167,7 +167,7 @@
                         <p class="text-xs text-gray-500">管理员</p>
                     </div>
                     <div class="ml-auto">
-                        <a href="{{ url_for('logout') }}" class="text-gray-400 hover:text-danger transition-colors">
+                        <a href="{{ url_for('auth.logout') }}" class="text-gray-400 hover:text-danger transition-colors">
                             <i class="fa fa-sign-out"></i>
                         </a>
                     </div>

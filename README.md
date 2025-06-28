@@ -125,13 +125,13 @@
 ### 2. 网络接口配置
 - 系统自动检测，如需手动指定，编辑 `ids_llm.py`：
   ```python
-  PVM_IP_ADDRESS, interface_name = get_interface_ip('你的接口名称')
+  #PVM_IP_ADDRESS, interface_name = get_interface_ip('你的接口名称')
   ```
 
 ### 3. Token限制
 - 编辑 `ids_llm.py`：
   ```python
-  self.token_limit = 1000000  # 每日Token限制
+  #self.token_limit = 1000000  # 每日Token限制
   ```
 
 ---

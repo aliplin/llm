@@ -32,9 +32,17 @@ CREATE TABLE IF NOT EXISTS events (
     request_data TEXT,
     severity TEXT,
     status TEXT,
+    event_type TEXT,
     FOREIGN KEY (rule_id) REFERENCES rules (id)
 );
 
+-- 创建系统日志表
+CREATE TABLE IF NOT EXISTS system_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    level TEXT NOT NULL,
+    message TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- 创建设置表
 CREATE TABLE IF NOT EXISTS settings (

@@ -78,23 +78,23 @@
             <nav class="p-4">
                 <div class="mb-6">
                     <p class="text-xs uppercase text-gray-400 font-semibold px-4 mb-3">主菜单</p>
-                    <a href="{{ url_for('index') }}" class="sidebar-item">
+                    <a href="{{ url_for('main.index') }}" class="sidebar-item">
                         <i class="fa fa-dashboard"></i>
                         <span>仪表盘</span>
                     </a>
-                    <a href="/honeypot_log_analysis" class="sidebar-item">
+                    <a href="{{ url_for('main.honeypot_log_analysis') }}" class="sidebar-item">
                         <i class="fa fa-flask"></i>
                         <span>蜜罐网络安全日志分析</span>
                     </a>
-                    <a href="{{ url_for('events') }}" class="sidebar-item">
+                    <a href="{{ url_for('events.events') }}" class="sidebar-item active">
                         <i class="fa fa-list-alt"></i>
                         <span>事件日志</span>
                     </a>
-                    <a href="{{ url_for('realtime') }}" class="sidebar-item">
+                    <a href="{{ url_for('main.realtime') }}" class="sidebar-item">
                         <i class="fa fa-globe"></i>
                         <span>实时监控</span>
                     </a>
-                    <a href="{{ url_for('rules') }}" class="sidebar-item">
+                    <a href="{{ url_for('rules.rules') }}" class="sidebar-item">
                         <i class="fa fa-gavel"></i>
                         <span>检测规则</span>
                     </a>
@@ -214,61 +214,18 @@
                                 </tr>
                             </thead>
                             <tbody id="eventTableBody">
-                                {% for event in events %}
-                                <tr class="table-row border-b border-gray-100">
-                                    <td class="py-3 px-4 text-sm">#{{ event[0] }}</td>
-                                    <td class="py-3 px-4 text-sm">{{ event[2] }}</td>
-                                    <td class="py-3 px-4 text-sm">{{ event[3] }}</td>
-                                    <td class="py-3 px-4 text-sm">{{ event[5] }}</td>
-                                    <td class="py-3 px-4 text-sm">{{ event[6] }}</td>
-                                    <td class="py-3 px-4 text-sm">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            {{ event[9] }}
-                                        </span>
-                                    </td>
-                                    <td class="py-3 px-4 text-sm">
-                                        {% if event[7] == 'high' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">高</span>
-                                        {% elif event[7] == 'medium' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">中</span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">低</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="py-3 px-4 text-sm">
-                                        <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails('{{ event[0] }}')">
-                                            <i class="fa fa-eye"></i> 详情
-                                        </button>
-                                        <button class="text-gray-500 hover:text-gray-700 mr-3">
-                                            <i class="fa fa-ban"></i> 忽略
-                                        </button>
-                                        <button class="text-danger hover:text-danger/80">
-                                            <i class="fa fa-shield"></i> 阻止
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                                <!-- 数据将通过JavaScript动态加载 -->
                             </tbody>
                         </table>
                     </div>
 
                     <!-- 分页 -->
                     <div class="flex items-center justify-between mt-6">
-                        <div class="text-sm text-gray-500">
-                            显示 1 到 20 条，共 128 条
+                        <div class="text-sm text-gray-500" id="paginationInfo">
+                            显示 1 到 20 条，共 0 条
                         </div>
-                        <div class="flex gap-1">
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100">
-                                <i class="fa fa-angle-left"></i>
-                            </button>
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg bg-primary text-white">1</button>
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100">2</button>
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100">3</button>
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100">4</button>
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100">5</button>
-                            <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100">
-                                <i class="fa fa-angle-right"></i>
-                            </button>
+                        <div class="flex gap-1" id="paginationContainer">
+                            <!-- 分页按钮将通过JavaScript动态生成 -->
                         </div>
                     </div>
                 </div>
@@ -322,14 +279,21 @@
                     data.events.forEach(event => {
                         const row = document.createElement('tr');
                         row.className = 'table-row border-b border-gray-100';
+                        
+                        // 确定严重级别的样式类
                         let severityClass = '';
-                        if (event.severity === '高') {
+                        let severityText = '';
+                        if (event.severity === 'high' || event.severity === '高') {
                             severityClass = 'bg-red-100 text-red-800';
-                        } else if (event.severity === '中') {
+                            severityText = '高';
+                        } else if (event.severity === 'medium' || event.severity === '中') {
                             severityClass = 'bg-yellow-100 text-yellow-800';
+                            severityText = '中';
                         } else {
                             severityClass = 'bg-green-100 text-green-800';
+                            severityText = '低';
                         }
+                        
                         row.innerHTML = `
                             <td class="py-3 px-4 text-sm">#${event.id}</td>
                             <td class="py-3 px-4 text-sm">${event.timestamp}</td>
@@ -343,21 +307,29 @@
                             </td>
                             <td class="py-3 px-4 text-sm">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
-                                    ${event.severity}
+                                    ${severityText}
                                 </span>
                             </td>
                             <td class="py-3 px-4 text-sm">
                                 <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails(${event.id})">
                                     <i class="fa fa-eye"></i> 详情
                                 </button>
+                                <button class="text-gray-500 hover:text-gray-700 mr-3" onclick="ignoreEvent(${event.id})">
+                                    <i class="fa fa-ban"></i> 忽略
+                                </button>
                                 <button class="text-danger hover:text-danger/80" onclick="blockIP('${event.ip_address}')">
-                                    <i class="fa fa-ban"></i> 阻止
+                                    <i class="fa fa-shield"></i> 阻止
                                 </button>
                             </td>
                         `;
                         tbody.appendChild(row);
                     });
                     updatePagination(data.total, data.page, data.per_page);
+                })
+                .catch(error => {
+                    console.error('Error loading events:', error);
+                    const tbody = document.getElementById('eventTableBody');
+                    tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-gray-500">加载事件数据失败</td></tr>';
                 });
         }
 
@@ -418,6 +390,24 @@
                .then(response => response.json())
                .then(data => {
                     const modalContent = document.getElementById('modalContent');
+                    
+                    // 确定严重级别的样式类
+                    let severityClass = '';
+                    let severityText = '';
+                    if (data.severity === 'high' || data.severity === '高') {
+                        severityClass = 'bg-red-100 text-red-800';
+                        severityText = '高';
+                    } else if (data.severity === 'medium' || data.severity === '中') {
+                        severityClass = 'bg-yellow-100 text-yellow-800';
+                        severityText = '中';
+                    } else {
+                        severityClass = 'bg-green-100 text-green-800';
+                        severityText = '低';
+                    }
+                    
+                    // 获取匹配的模式
+                    const matchedPattern = data.rule_pattern || '未匹配到具体规则';
+                    
                     modalContent.innerHTML = `
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                             <div>
@@ -455,8 +445,8 @@
                             <div>
                                 <p class="text-sm text-gray-500">严重级别</p>
                                 <p class="font-medium">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                        ${data.severity}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
+                                        ${severityText}
                                     </span>
                                 </p>
                             </div>
@@ -464,20 +454,14 @@
 
                         <div class="mb-6">
                             <h4 class="font-medium mb-3">匹配的模式</h4>
-                            <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">${data.details.matched_pattern}</pre>
+                            <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">${matchedPattern}</pre>
                         </div>
 
                         <div>
                             <h4 class="font-medium mb-3">请求数据</h4>
                             <div class="bg-gray-50 p-3 rounded-lg text-sm">
-                                <p class="font-medium mb-2">路径参数:</p>
-                                <pre class="text-xs">${JSON.stringify(data.details.request_data.path, null, 2)}</pre>
-
-                                <p class="font-medium mb-2 mt-4">查询参数:</p>
-                                <pre class="text-xs">${JSON.stringify(data.details.request_data.args, null, 2)}</pre>
-
-                                <p class="font-medium mb-2 mt-4">表单数据:</p>
-                                <pre class="text-xs">${JSON.stringify(data.details.request_data.form, null, 2)}</pre>
+                                <p class="font-medium mb-2">完整请求数据:</p>
+                                <pre class="text-xs">${JSON.stringify(data.request_data, null, 2)}</pre>
                             </div>
                         </div>
                     `;
@@ -507,9 +491,36 @@
             }
         }
 
+        function ignoreEvent(eventId) {
+            if (confirm('确定要忽略这个事件吗？')) {
+                fetch(`/api/events/${eventId}/ignore`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert(data.message);
+                        // 重新加载当前页面的事件
+                        const currentPage = document.querySelector('.pagination button.bg-primary')?.textContent || 1;
+                        loadEvents(parseInt(currentPage));
+                    } else {
+                        alert('忽略事件失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('忽略事件失败');
+                });
+            }
+        }
+
         // 初始化加载数据
         document.addEventListener('DOMContentLoaded', function() {
             loadEvents();
+            loadEventTypes();
 
             // 设置定时刷新
             setInterval(() => {
@@ -521,6 +532,20 @@
                 document.getElementById('eventDetailsModal').classList.add('hidden');
             });
 
+            // 点击模态框背景关闭
+            document.getElementById('eventDetailsModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+
+            // ESC键关闭模态框
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.getElementById('eventDetailsModal').classList.add('hidden');
+                }
+            });
+
             document.getElementById('searchInput').addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     applyFilters();
@@ -528,35 +553,74 @@
             });
         });
 
+        function loadEventTypes() {
+            fetch('/api/events/types')
+                .then(response => response.json())
+                .then(eventTypes => {
+                    const select = document.getElementById('eventType');
+                    // 保留"全部类型"选项
+                    select.innerHTML = '<option value="">全部类型</option>';
+                    
+                    eventTypes.forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = type;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading event types:', error);
+                });
+        }
+
         function updatePagination(total, page, per_page) {
-            const container = document.querySelector('.flex.gap-1');
+            // 更新分页信息
+            const start = (page - 1) * per_page + 1;
+            const end = Math.min(page * per_page, total);
+            const paginationInfo = document.getElementById('paginationInfo');
+            paginationInfo.textContent = `显示 ${start} 到 ${end} 条，共 ${total} 条`;
+            
+            // 更新分页按钮
+            const container = document.getElementById('paginationContainer');
             if (!container) return;
             container.innerHTML = '';
+            
             const totalPages = Math.ceil(total / per_page);
+            
             // 上一页
             const prevBtn = document.createElement('button');
             prevBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100';
             prevBtn.innerHTML = '<i class="fa fa-angle-left"></i>';
             prevBtn.disabled = page <= 1;
-            prevBtn.onclick = () => loadEvents(page - 1);
+            if (page > 1) {
+                prevBtn.onclick = () => loadEvents(page - 1);
+            }
             container.appendChild(prevBtn);
+            
             // 页码按钮（最多显示5页，当前页居中）
-            let start = Math.max(1, page - 2);
-            let end = Math.min(totalPages, start + 4);
-            if (end - start < 4) start = Math.max(1, end - 4);
-            for (let i = start; i <= end; i++) {
+            let startPage = Math.max(1, page - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
                 const btn = document.createElement('button');
-                btn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border ' + (i === page ? 'bg-primary text-white' : 'border-gray-300 hover:bg-gray-100');
+                btn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border ' + 
+                    (i === page ? 'bg-primary text-white' : 'border-gray-300 hover:bg-gray-100');
                 btn.textContent = i;
                 btn.onclick = () => loadEvents(i);
                 container.appendChild(btn);
             }
+            
             // 下一页
             const nextBtn = document.createElement('button');
             nextBtn.className = 'w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-100';
             nextBtn.innerHTML = '<i class="fa fa-angle-right"></i>';
             nextBtn.disabled = page >= totalPages;
-            nextBtn.onclick = () => loadEvents(page + 1);
+            if (page < totalPages) {
+                nextBtn.onclick = () => loadEvents(page + 1);
+            }
             container.appendChild(nextBtn);
         }
     </script>
