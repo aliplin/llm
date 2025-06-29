@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required
 from ..utils.database import get_db_connection
 import json
+import logging
 
 events_api_bp = Blueprint('events_api', __name__)
 
@@ -14,19 +15,19 @@ events_api_bp = Blueprint('events_api', __name__)
 @login_required
 def get_events():
     """获取事件列表"""
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 50, type=int)
-    event_type = request.args.get('event_type', '')
-    severity = request.args.get('severity', '')
-    ip_address = request.args.get('ip_address', '')
-    start_date = request.args.get('start_date', '')
-    end_date = request.args.get('end_date', '')
-    search = request.args.get('search', '')
-    
-    conn = get_db_connection()
-    c = conn.cursor()
-    
     try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        event_type = request.args.get('event_type', '')
+        severity = request.args.get('severity', '')
+        ip_address = request.args.get('ip_address', '')
+        start_date = request.args.get('start_date', '')
+        end_date = request.args.get('end_date', '')
+        search = request.args.get('search', '')
+        
+        conn = get_db_connection()
+        c = conn.cursor()
+        
         # 构建查询条件
         where_conditions = []
         params = []
@@ -84,22 +85,26 @@ def get_events():
             # 解析request_data JSON
             try:
                 request_data = json.loads(row[7]) if row[7] else {}
-            except:
+            except Exception as e:
+                logging.warning(f"request_data解析失败: {e}, 原始值: {row[7]}")
                 request_data = {}
             
-            events.append({
-                'id': row[0],
-                'timestamp': row[2],
-                'ip_address': row[3] or '-',
-                'user_agent': row[4] or '-',
-                'request_path': row[5] or '-',
-                'request_method': row[6] or '-',
-                'request_data': request_data,
-                'severity': row[8] or 'low',
-                'status': row[9] or '-',
-                'event_type': row[10] or '未知类型',
-                'rule_name': row[11] or '-'
-            })
+            # 根据数据库实际字段索引重新映射
+            event = {
+                'id': row[0],                    # id
+                'rule_id': row[1],               # rule_id
+                'timestamp': row[2],             # timestamp
+                'ip_address': row[3] or '-',     # ip_address
+                'user_agent': row[4] or '-',     # user_agent
+                'request_path': row[5] or '-',   # request_path
+                'request_method': row[6] or '-', # request_method
+                'request_data': request_data,    # request_data
+                'severity': row[8] or 'low',     # severity
+                'status': row[9] or '-',         # status
+                'event_type': row[10] or '未知类型', # event_type
+                'rule_name': row[11] or '-'      # rule_name (来自JOIN)
+            }
+            events.append(event)
         
         return jsonify({
             'events': events,
@@ -110,18 +115,20 @@ def get_events():
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取事件列表失败: {e}")
+        return jsonify({"error": f"获取事件列表失败: {str(e)}"}), 500
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @events_api_bp.route('/events/<int:event_id>', methods=['GET'])
 @login_required
 def get_event(event_id):
     """获取单个事件详情"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    
     try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
         c.execute("""
             SELECT e.*, r.name as rule_name, r.pattern as rule_pattern
             FROM events e 
@@ -136,39 +143,44 @@ def get_event(event_id):
         # 解析request_data JSON
         try:
             request_data = json.loads(row[7]) if row[7] else {}
-        except:
+        except Exception as e:
+            logging.warning(f"request_data解析失败: {e}, 原始值: {row[7]}")
             request_data = {}
         
+        # 根据数据库实际字段索引重新映射
         event = {
-            'id': row[0],
-            'timestamp': row[2],
-            'ip_address': row[3] or '-',
-            'user_agent': row[4] or '-',
-            'request_path': row[5] or '-',
-            'request_method': row[6] or '-',
-            'request_data': request_data,
-            'severity': row[8] or 'low',
-            'status': row[9] or '-',
-            'event_type': row[10] or '未知类型',
-            'rule_name': row[11] or '-',
-            'rule_pattern': row[12] or '-'
+            'id': row[0],                    # id
+            'rule_id': row[1],               # rule_id
+            'timestamp': row[2],             # timestamp
+            'ip_address': row[3] or '-',     # ip_address
+            'user_agent': row[4] or '-',     # user_agent
+            'request_path': row[5] or '-',   # request_path
+            'request_method': row[6] or '-', # request_method
+            'request_data': request_data,    # request_data
+            'severity': row[8] or 'low',     # severity
+            'status': row[9] or '-',         # status
+            'event_type': row[10] or '未知类型', # event_type
+            'rule_name': row[11] or '-',     # rule_name (来自JOIN)
+            'rule_pattern': row[12] or '-'   # rule_pattern (来自JOIN)
         }
         
         return jsonify(event)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取事件详情失败: {e}")
+        return jsonify({"error": f"获取事件详情失败: {str(e)}"}), 500
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @events_api_bp.route('/events/<int:event_id>/block', methods=['POST'])
 @login_required
 def block_event(event_id):
     """阻止事件相关的IP地址"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    
     try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
         # 获取事件信息
         c.execute("SELECT ip_address FROM events WHERE id = ?", (event_id,))
         result = c.fetchone()
@@ -193,18 +205,20 @@ def block_event(event_id):
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"阻止事件失败: {e}")
+        return jsonify({"error": f"阻止事件失败: {str(e)}"}), 500
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @events_api_bp.route('/events/<int:event_id>/ignore', methods=['POST'])
 @login_required
 def ignore_event(event_id):
     """忽略事件"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    
     try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
         # 检查事件是否存在
         c.execute("SELECT id FROM events WHERE id = ?", (event_id,))
         if not c.fetchone():
@@ -217,45 +231,51 @@ def ignore_event(event_id):
         return jsonify({"message": "事件已忽略"})
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"忽略事件失败: {e}")
+        return jsonify({"error": f"忽略事件失败: {str(e)}"}), 500
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @events_api_bp.route('/events/clear', methods=['POST'])
 @login_required
 def clear_events():
     """清空所有事件"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    
     try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
         c.execute("DELETE FROM events")
         conn.commit()
         
         return jsonify({"message": "所有事件已清空"})
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"清空事件失败: {e}")
+        return jsonify({"error": f"清空事件失败: {str(e)}"}), 500
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @events_api_bp.route('/events/types', methods=['GET'])
 @login_required
 def get_event_types():
     """获取事件类型列表"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    
     try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
         c.execute("SELECT DISTINCT event_type FROM events WHERE event_type IS NOT NULL AND event_type != '' ORDER BY event_type")
         event_types = [row[0] for row in c.fetchall()]
         
         return jsonify(event_types)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取事件类型失败: {e}")
+        return jsonify({"error": f"获取事件类型失败: {str(e)}"}), 500
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 @events_api_bp.route('/block_ip', methods=['POST'])
 @login_required
@@ -289,4 +309,5 @@ def block_ip():
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"阻止IP失败: {e}")
+        return jsonify({"error": f"阻止IP失败: {str(e)}"}), 500

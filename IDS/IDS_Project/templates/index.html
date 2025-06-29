@@ -251,11 +251,43 @@
                 <!-- 最近事件表格 -->
                 <div class="bg-white rounded-xl p-5 card-shadow">
                     <div class="flex items-center justify-between mb-6">
-                        <h3 class="font-bold text-lg">最近事件</h3>
-                        <a href="{{ url_for('events.events') }}" class="text-primary hover:text-primary/80 text-sm flex items-center gap-1">
-                            查看全部 <i class="fa fa-angle-right"></i>
-                        </a>
+                        <div class="flex items-center gap-4">
+                            <h3 class="font-bold text-lg">最近事件</h3>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">实时更新</span>
+                                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button class="btn btn-outline text-sm" onclick="refreshRecentEvents()">
+                                <i class="fa fa-refresh mr-1"></i> 刷新
+                            </button>
+                            <a href="{{ url_for('events.events') }}" class="text-primary hover:text-primary/80 text-sm flex items-center gap-1">
+                                查看全部 <i class="fa fa-angle-right"></i>
+                            </a>
+                        </div>
                     </div>
+                    
+                    <!-- 事件统计摘要 -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-red-600" id="recentHighRisk">0</div>
+                            <div class="text-xs text-gray-500">高风险</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-yellow-600" id="recentMediumRisk">0</div>
+                            <div class="text-xs text-gray-500">中风险</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-green-600" id="recentLowRisk">0</div>
+                            <div class="text-xs text-gray-500">低风险</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-blue-600" id="recentTotal">0</div>
+                            <div class="text-xs text-gray-500">总计</div>
+                        </div>
+                    </div>
+                    
                     <div class="overflow-x-auto">
                         <table class="min-w-full">
                             <thead>
@@ -264,6 +296,7 @@
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">IP地址</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">事件类型</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">严重级别</th>
+                                    <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">状态</th>
                                     <th class="text-left py-3 px-4 text-sm font-semibold text-gray-500">操作</th>
                                 </tr>
                             </thead>
@@ -271,6 +304,30 @@
                                 <!-- 数据将通过JavaScript动态加载 -->
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- 加载状态 -->
+                    <div id="recentEventsLoading" class="text-center py-8 hidden">
+                        <div class="inline-flex items-center gap-2 text-gray-500">
+                            <i class="fa fa-spinner fa-spin"></i>
+                            <span>加载中...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 空状态 -->
+                    <div id="recentEventsEmpty" class="text-center py-12 hidden">
+                        <i class="fa fa-shield text-4xl text-gray-300 mb-3"></i>
+                        <p class="text-gray-500">暂无最近事件</p>
+                        <p class="text-sm text-gray-400 mt-1">系统正在监控中...</p>
+                    </div>
+                    
+                    <!-- 错误状态 -->
+                    <div id="recentEventsError" class="text-center py-8 hidden">
+                        <i class="fa fa-exclamation-triangle text-4xl text-red-300 mb-3"></i>
+                        <p class="text-red-500">加载失败，请重试</p>
+                        <button class="btn btn-outline mt-3" onclick="loadRecentEvents()">
+                            <i class="fa fa-refresh mr-1"></i> 重新加载
+                        </button>
                     </div>
                 </div>
             </main>
@@ -485,7 +542,24 @@
         // 实时添加最近事件
         function addRecentEventRealtime(eventData) {
             const tbody = document.getElementById('recentEventsTable');
-            const timeStr = new Date(eventData.timestamp).toLocaleTimeString('zh-CN');
+            
+            // 格式化时间显示
+            let timeDisplay = '未知时间';
+            if (eventData.timestamp) {
+                try {
+                    const eventTime = new Date(eventData.timestamp);
+                    timeDisplay = eventTime.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                } catch (e) {
+                    timeDisplay = eventData.timestamp;
+                }
+            }
             
             // 确定严重级别的样式类
             let severityClass = '';
@@ -501,23 +575,67 @@
                 severityText = '低';
             }
             
+            // 确定状态样式
+            let statusClass = '';
+            let statusText = '';
+            if (eventData.status === 'blocked') {
+                statusClass = 'bg-red-100 text-red-800';
+                statusText = '已阻止';
+            } else if (eventData.status === 'ignored') {
+                statusClass = 'bg-gray-100 text-gray-800';
+                statusText = '已忽略';
+            } else {
+                statusClass = 'bg-blue-100 text-blue-800';
+                statusText = '已检测';
+            }
+            
             const newRow = document.createElement('tr');
             newRow.className = 'table-row border-b border-gray-100 new-event-row';
             newRow.style.animation = 'fadeIn 0.5s ease-in';
             
             newRow.innerHTML = `
-                <td class="py-3 px-4 text-sm">${timeStr}</td>
-                <td class="py-3 px-4 text-sm">${eventData.ip_address || '未知'}</td>
-                <td class="py-3 px-4 text-sm">${eventData.event_type || '未知'}</td>
+                <td class="py-3 px-4 text-sm">
+                    <div class="flex flex-col">
+                        <span class="font-medium">${timeDisplay.split(' ')[0]}</span>
+                        <span class="text-xs text-gray-500">${timeDisplay.split(' ')[1]}</span>
+                    </div>
+                </td>
+                <td class="py-3 px-4 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono">${eventData.ip_address || '未知'}</span>
+                        <button class="text-xs text-blue-600 hover:text-blue-800" onclick="blockIP('${eventData.ip_address}')" title="阻止IP">
+                            <i class="fa fa-shield"></i>
+                        </button>
+                    </div>
+                </td>
+                <td class="py-3 px-4 text-sm">
+                    <div class="flex flex-col">
+                        <span class="font-medium">${eventData.event_type || '未知'}</span>
+                        <span class="text-xs text-gray-500 truncate" title="${eventData.request_path || ''}">${eventData.request_path || ''}</span>
+                    </div>
+                </td>
                 <td class="py-3 px-4 text-sm">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
                         ${severityText}
                     </span>
                 </td>
                 <td class="py-3 px-4 text-sm">
-                    <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails(${eventData.id})">
-                        <i class="fa fa-eye"></i> 详情
-                    </button>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                        ${statusText}
+                    </span>
+                </td>
+                <td class="py-3 px-4 text-sm">
+                    <div class="flex items-center gap-2">
+                        <button class="text-primary hover:text-primary/80" onclick="viewEventDetails(${eventData.id})" title="查看详情">
+                            <i class="fa fa-eye"></i>
+                        </button>
+                        <button class="text-gray-600 hover:text-gray-800" onclick="ignoreEvent(${eventData.id})" title="忽略事件">
+                            <i class="fa fa-ban"></i>
+                        </button>
+                        <button class="text-red-600 hover:text-red-800" onclick="blockIP('${eventData.ip_address}')" title="阻止IP">
+                            <i class="fa fa-shield"></i>
+                        </button>
+                    </div>
                 </td>
             `;
             
@@ -534,6 +652,38 @@
             setTimeout(() => {
                 newRow.classList.remove('new-event-row');
             }, 500);
+            
+            // 更新统计摘要
+            updateRecentEventsStatsRealtime(eventData);
+        }
+
+        // 实时更新最近事件统计摘要
+        function updateRecentEventsStatsRealtime(eventData) {
+            const highRiskElement = document.getElementById('recentHighRisk');
+            const mediumRiskElement = document.getElementById('recentMediumRisk');
+            const lowRiskElement = document.getElementById('recentLowRisk');
+            const totalElement = document.getElementById('recentTotal');
+            
+            if (highRiskElement && mediumRiskElement && lowRiskElement && totalElement) {
+                let high = parseInt(highRiskElement.textContent) || 0;
+                let medium = parseInt(mediumRiskElement.textContent) || 0;
+                let low = parseInt(lowRiskElement.textContent) || 0;
+                let total = parseInt(totalElement.textContent) || 0;
+                
+                if (eventData.severity === 'high' || eventData.severity === '高') {
+                    high++;
+                } else if (eventData.severity === 'medium' || eventData.severity === '中') {
+                    medium++;
+                } else {
+                    low++;
+                }
+                total++;
+                
+                highRiskElement.textContent = high;
+                mediumRiskElement.textContent = medium;
+                lowRiskElement.textContent = low;
+                totalElement.textContent = total;
+            }
         }
 
         // 加载仪表盘统计数据
@@ -713,53 +863,257 @@
 
         // 加载最近事件
         function loadRecentEvents() {
-            fetch('/api/dashboard/recent-events')
+            showRecentEventsLoading();
+            
+            fetch('/api/dashboard/recent-events?limit=10')
                 .then(response => response.json())
                 .then(data => {
+                    if (data.error) {
+                        console.error('API Error:', data.error);
+                        showRecentEventsError();
+                        return;
+                    }
+                    
                     const tbody = document.getElementById('recentEventsTable');
                     tbody.innerHTML = '';
                     
-                    data.events.forEach(event => {
-                        const row = document.createElement('tr');
-                        row.className = 'table-row border-b border-gray-100';
+                    if (data.events && data.events.length > 0) {
+                        // 统计各风险级别的事件数量
+                        const stats = {
+                            high: 0,
+                            medium: 0,
+                            low: 0,
+                            total: data.events.length
+                        };
                         
-                        // 确定严重级别的样式类
-                        let severityClass = '';
-                        let severityText = '';
-                        if (event.severity === 'high' || event.severity === '高') {
-                            severityClass = 'bg-red-100 text-red-800';
-                            severityText = '高';
-                        } else if (event.severity === 'medium' || event.severity === '中') {
-                            severityClass = 'bg-yellow-100 text-yellow-800';
-                            severityText = '中';
-                        } else {
-                            severityClass = 'bg-green-100 text-green-800';
-                            severityText = '低';
-                        }
+                        data.events.forEach(event => {
+                            const row = document.createElement('tr');
+                            row.className = 'table-row border-b border-gray-100 hover:bg-gray-50 transition-colors';
+                            
+                            // 格式化时间显示
+                            let timeDisplay = '未知时间';
+                            if (event.timestamp) {
+                                try {
+                                    const eventTime = new Date(event.timestamp);
+                                    timeDisplay = eventTime.toLocaleString('zh-CN', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        second: '2-digit'
+                                    });
+                                } catch (e) {
+                                    timeDisplay = event.timestamp;
+                                }
+                            }
+                            
+                            // 确定严重级别的样式类
+                            let severityClass = '';
+                            let severityText = '';
+                            if (event.severity === 'high' || event.severity === '高') {
+                                severityClass = 'bg-red-100 text-red-800';
+                                severityText = '高';
+                                stats.high++;
+                            } else if (event.severity === 'medium' || event.severity === '中') {
+                                severityClass = 'bg-yellow-100 text-yellow-800';
+                                severityText = '中';
+                                stats.medium++;
+                            } else {
+                                severityClass = 'bg-green-100 text-green-800';
+                                severityText = '低';
+                                stats.low++;
+                            }
+                            
+                            // 确定状态样式
+                            let statusClass = '';
+                            let statusText = '';
+                            if (event.status === 'blocked') {
+                                statusClass = 'bg-red-100 text-red-800';
+                                statusText = '已阻止';
+                            } else if (event.status === 'ignored') {
+                                statusClass = 'bg-gray-100 text-gray-800';
+                                statusText = '已忽略';
+                            } else {
+                                statusClass = 'bg-blue-100 text-blue-800';
+                                statusText = '已检测';
+                            }
+                            
+                            row.innerHTML = `
+                                <td class="py-3 px-4 text-sm">
+                                    <div class="flex flex-col">
+                                        <span class="font-medium">${timeDisplay.split(' ')[0]}</span>
+                                        <span class="text-xs text-gray-500">${timeDisplay.split(' ')[1]}</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4 text-sm">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono">${event.ip_address}</span>
+                                        <button class="text-xs text-blue-600 hover:text-blue-800" onclick="blockIP('${event.ip_address}')" title="阻止IP">
+                                            <i class="fa fa-shield"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4 text-sm">
+                                    <div class="flex flex-col">
+                                        <span class="font-medium">${event.event_type}</span>
+                                        <span class="text-xs text-gray-500 truncate" title="${event.request_path}">${event.request_path}</span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4 text-sm">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
+                                        ${severityText}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-sm">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                                        ${statusText}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-sm">
+                                    <div class="flex items-center gap-2">
+                                        <button class="text-primary hover:text-primary/80" onclick="viewEventDetails(${event.id})" title="查看详情">
+                                            <i class="fa fa-eye"></i>
+                                        </button>
+                                        <button class="text-gray-600 hover:text-gray-800" onclick="ignoreEvent(${event.id})" title="忽略事件">
+                                            <i class="fa fa-ban"></i>
+                                        </button>
+                                        <button class="text-red-600 hover:text-red-800" onclick="blockIP('${event.ip_address}')" title="阻止IP">
+                                            <i class="fa fa-shield"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
                         
-                        row.innerHTML = `
-                            <td class="py-3 px-4 text-sm">${event.timestamp}</td>
-                            <td class="py-3 px-4 text-sm">${event.ip_address}</td>
-                            <td class="py-3 px-4 text-sm">${event.event_type}</td>
-                            <td class="py-3 px-4 text-sm">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
-                                    ${severityText}
-                                </span>
-                            </td>
-                            <td class="py-3 px-4 text-sm">
-                                <button class="text-primary hover:text-primary/80 mr-3" onclick="viewEventDetails(${event.id})">
-                                    <i class="fa fa-eye"></i> 详情
-                                </button>
-                            </td>
-                        `;
-                        tbody.appendChild(row);
-                    });
+                        // 更新统计摘要
+                        updateRecentEventsStats(stats);
+                        showRecentEventsTable();
+                    } else {
+                        showRecentEventsEmpty();
+                    }
                 })
                 .catch(error => {
                     console.error('Error loading recent events:', error);
-                    const tbody = document.getElementById('recentEventsTable');
-                    tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-gray-500">加载最近事件失败</td></tr>';
+                    showRecentEventsError();
                 });
+        }
+
+        // 更新最近事件统计摘要
+        function updateRecentEventsStats(stats) {
+            document.getElementById('recentHighRisk').textContent = stats.high;
+            document.getElementById('recentMediumRisk').textContent = stats.medium;
+            document.getElementById('recentLowRisk').textContent = stats.low;
+            document.getElementById('recentTotal').textContent = stats.total;
+        }
+
+        // 显示最近事件加载状态
+        function showRecentEventsLoading() {
+            document.getElementById('recentEventsTable').parentElement.classList.add('hidden');
+            document.getElementById('recentEventsLoading').classList.remove('hidden');
+            document.getElementById('recentEventsEmpty').classList.add('hidden');
+            document.getElementById('recentEventsError').classList.add('hidden');
+        }
+
+        // 显示最近事件表格
+        function showRecentEventsTable() {
+            document.getElementById('recentEventsTable').parentElement.classList.remove('hidden');
+            document.getElementById('recentEventsLoading').classList.add('hidden');
+            document.getElementById('recentEventsEmpty').classList.add('hidden');
+            document.getElementById('recentEventsError').classList.add('hidden');
+        }
+
+        // 显示最近事件空状态
+        function showRecentEventsEmpty() {
+            document.getElementById('recentEventsTable').parentElement.classList.add('hidden');
+            document.getElementById('recentEventsLoading').classList.add('hidden');
+            document.getElementById('recentEventsEmpty').classList.remove('hidden');
+            document.getElementById('recentEventsError').classList.add('hidden');
+        }
+
+        // 显示最近事件错误状态
+        function showRecentEventsError() {
+            document.getElementById('recentEventsTable').parentElement.classList.add('hidden');
+            document.getElementById('recentEventsLoading').classList.add('hidden');
+            document.getElementById('recentEventsEmpty').classList.add('hidden');
+            document.getElementById('recentEventsError').classList.remove('hidden');
+        }
+
+        // 刷新最近事件
+        function refreshRecentEvents() {
+            loadRecentEvents();
+        }
+
+        // 忽略事件
+        function ignoreEvent(eventId) {
+            if (confirm('确定要忽略这个事件吗？')) {
+                fetch(`/api/events/${eventId}/ignore`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        showMessage('success', data.message);
+                        loadRecentEvents(); // 重新加载列表
+                    } else {
+                        showMessage('error', data.error || '忽略事件失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('error', '忽略事件失败');
+                });
+            }
+        }
+
+        // 阻止IP
+        function blockIP(ip) {
+            if (confirm(`确定要阻止IP地址 ${ip} 吗？`)) {
+                fetch('/api/block_ip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ip: ip})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        showMessage('success', data.message);
+                        loadRecentEvents(); // 重新加载列表
+                    } else {
+                        showMessage('error', data.error || 'IP阻止失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('error', 'IP阻止失败');
+                });
+            }
+        }
+
+        // 显示消息
+        function showMessage(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`;
+            alertDiv.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <i class="fa fa-${type === 'success' ? 'check' : 'exclamation-triangle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 3000);
         }
 
         // 查看事件详情
@@ -767,6 +1121,11 @@
             fetch(`/api/events/${eventId}`)
                 .then(response => response.json())
                 .then(data => {
+                    if (data.error) {
+                        showMessage('error', data.error);
+                        return;
+                    }
+                    
                     const modalContent = document.getElementById('modalContent');
                     
                     // 确定严重级别的样式类
@@ -783,63 +1142,108 @@
                         severityText = '低';
                     }
                     
+                    // 确定状态样式
+                    let statusClass = '';
+                    let statusText = '';
+                    if (data.status === 'blocked') {
+                        statusClass = 'bg-red-100 text-red-800';
+                        statusText = '已阻止';
+                    } else if (data.status === 'ignored') {
+                        statusClass = 'bg-gray-100 text-gray-800';
+                        statusText = '已忽略';
+                    } else {
+                        statusClass = 'bg-blue-100 text-blue-800';
+                        statusText = '已检测';
+                    }
+                    
+                    // 格式化时间
+                    let formattedTime = '未知时间';
+                    if (data.timestamp) {
+                        try {
+                            const eventTime = new Date(data.timestamp);
+                            formattedTime = eventTime.toLocaleString('zh-CN', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                            });
+                        } catch (e) {
+                            formattedTime = data.timestamp;
+                        }
+                    }
+                    
                     // 获取匹配的模式
                     const matchedPattern = data.rule_pattern || '未匹配到具体规则';
                     
                     modalContent.innerHTML = `
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            <div>
-                                <p class="text-sm text-gray-500">事件ID</p>
-                                <p class="font-medium">#${data.id}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">时间戳</p>
-                                <p class="font-medium">${data.timestamp}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">IP地址</p>
-                                <p class="font-medium">${data.ip_address}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">请求路径</p>
-                                <p class="font-medium">${data.request_path}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">请求方法</p>
-                                <p class="font-medium">${data.request_method}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">用户代理</p>
-                                <p class="font-medium text-sm">${data.user_agent}</p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">事件类型</p>
-                                <p class="font-medium">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        ${data.event_type}
-                                    </span>
-                                </p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-500">严重级别</p>
-                                <p class="font-medium">
+                        <div class="space-y-6">
+                            <!-- 事件基本信息 -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-gray-500">事件ID</p>
+                                    <p class="font-medium">#${data.id}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">时间戳</p>
+                                    <p class="font-medium">${formattedTime}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">IP地址</p>
+                                    <p class="font-medium font-mono">${data.ip_address}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">严重级别</p>
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityClass}">
                                         ${severityText}
                                     </span>
-                                </p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">状态</p>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                                        ${statusText}
+                                    </span>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">事件类型</p>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        ${data.event_type}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-
-                        <div class="mb-6">
-                            <h4 class="font-medium mb-3">匹配的模式</h4>
-                            <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">${matchedPattern}</pre>
-                        </div>
-
-                        <div>
-                            <h4 class="font-medium mb-3">请求数据</h4>
-                            <div class="bg-gray-50 p-3 rounded-lg text-sm">
-                                <p class="font-medium mb-2">完整请求数据:</p>
-                                <pre class="text-xs">${JSON.stringify(data.request_data, null, 2)}</pre>
+                            
+                            <!-- 请求信息 -->
+                            <div>
+                                <h4 class="font-medium mb-3">请求信息</h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">请求路径</p>
+                                        <p class="font-medium text-sm break-all">${data.request_path}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">请求方法</p>
+                                        <p class="font-medium">${data.request_method}</p>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <p class="text-sm text-gray-500">用户代理</p>
+                                        <p class="font-medium text-sm break-all">${data.user_agent}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 匹配的模式 -->
+                            <div>
+                                <h4 class="font-medium mb-3">匹配的模式</h4>
+                                <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">${matchedPattern}</pre>
+                            </div>
+                            
+                            <!-- 请求数据 -->
+                            <div>
+                                <h4 class="font-medium mb-3">请求数据</h4>
+                                <div class="bg-gray-50 p-3 rounded-lg text-sm">
+                                    <pre class="text-xs overflow-x-auto break-all">${JSON.stringify(data.request_data, null, 2)}</pre>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -849,7 +1253,7 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('获取事件详情失败');
+                    showMessage('error', '获取事件详情失败');
                 });
         }
     </script>

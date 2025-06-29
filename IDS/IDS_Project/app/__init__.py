@@ -14,7 +14,7 @@ from .models.user import User
 from .utils.database import get_db_connection
 
 # 创建SocketIO实例
-socketio = SocketIO()
+socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app():
     """应用工厂函数"""
@@ -33,7 +33,7 @@ def create_app():
     app.config.from_object(Config)
     
     # 初始化SocketIO
-    socketio.init_app(app, cors_allowed_origins="*")
+    socketio.init_app(app)
     
     # 初始化Flask-Login
     login_manager = LoginManager()
@@ -77,9 +77,13 @@ def create_app():
     app.register_blueprint(events_bp)
     app.register_blueprint(rules_bp)
     
-    # 注册WebSocket事件处理器
-    from .services.socket_events import register_socket_events
-    register_socket_events(socketio)
+    # 注册SocketIO事件处理器
+    try:
+        from .services.socket_events import register_socket_events
+        register_socket_events(socketio)
+        print("WebSocket事件处理器注册成功")
+    except Exception as e:
+        print(f"WebSocket事件处理器注册失败: {e}")
     
     # 初始化事件处理器
     try:

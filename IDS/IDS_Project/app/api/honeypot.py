@@ -191,88 +191,218 @@ def get_honeypot_realtime_logs():
     """获取蜜罐实时日志"""
     level = request.args.get('level', 'all')
     limit = request.args.get('limit', 50, type=int)
+    time_range = request.args.get('time_range', 24, type=int)  # 默认24小时
+    search = request.args.get('search', '')
     
     conn = get_db_connection()
     c = conn.cursor()
     
     try:
-        # 获取最近的命令和响应
-        c.execute("""
-            SELECT 
-                c.command_id,
-                c.command,
-                a.answer,
-                c.command_id as timestamp,
-                'command' as type
-            FROM commands c
-            LEFT JOIN answers a ON c.command_id = a.command_id
-            ORDER BY c.command_id DESC
-            LIMIT ?
-        """, (limit,))
+        # 计算时间范围
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=time_range)
         
-        command_logs = []
-        for row in c.fetchall():
-            command_logs.append({
-                'id': row[0],
-                'content': f"命令: {row[1]}",
-                'response': row[2] if row[2] else '无响应',
-                'timestamp': row[3],
-                'type': row[4]
-            })
+        # 构建搜索条件
+        search_condition = ""
+        search_params = []
+        if search:
+            search_condition = "AND (c.command LIKE ? OR a.answer LIKE ?)"
+            search_params = [f"%{search}%", f"%{search}%"]
+        
+        # 根据日志类型过滤
+        type_condition = ""
+        if level != 'all':
+            if level == 'command':
+                type_condition = "AND c.command IS NOT NULL"
+            elif level == 'http':
+                type_condition = "AND h.method IS NOT NULL"
+            elif level == 'mysql':
+                type_condition = "AND mc.command IS NOT NULL"
+            elif level == 'ssh':
+                type_condition = "AND s.username IS NOT NULL"
+            elif level == 'pop3':
+                type_condition = "AND p.username IS NOT NULL"
+        
+        # 获取最近的命令和响应
+        if level in ['all', 'command']:
+            c.execute(f"""
+                SELECT 
+                    c.command_id,
+                    c.command,
+                    a.answer,
+                    c.command_id as timestamp,
+                    'command' as type
+                FROM commands c
+                LEFT JOIN answers a ON c.command_id = a.command_id
+                WHERE c.command_id >= ?
+                {search_condition}
+                {type_condition}
+                ORDER BY c.command_id DESC
+                LIMIT ?
+            """, [int(start_time.timestamp() * 1000)] + search_params + [limit])
+            
+            command_logs = []
+            for row in c.fetchall():
+                command_logs.append({
+                    'id': row[0],
+                    'content': f"命令: {row[1]}",
+                    'response': row[2] if row[2] else '无响应',
+                    'timestamp': row[3],
+                    'type': row[4]
+                })
+        else:
+            command_logs = []
         
         # 获取最近的HTTP请求
-        c.execute("""
-            SELECT 
-                request_id,
-                method,
-                path,
-                request_time,
-                response
-            FROM http_request
-            ORDER BY request_time DESC
-            LIMIT ?
-        """, (limit,))
-        
-        http_logs = []
-        for row in c.fetchall():
-            http_logs.append({
-                'id': row[0],
-                'content': f"{row[1]} {row[2]}",
-                'response': row[4],
-                'timestamp': row[3],
-                'type': 'http'
-            })
+        if level in ['all', 'http']:
+            http_search_condition = ""
+            http_search_params = []
+            if search:
+                http_search_condition = "AND (h.method LIKE ? OR h.path LIKE ? OR h.response LIKE ?)"
+                http_search_params = [f"%{search}%", f"%{search}%", f"%{search}%"]
+            
+            c.execute(f"""
+                SELECT 
+                    h.request_id,
+                    h.method,
+                    h.path,
+                    h.request_time,
+                    h.response
+                FROM http_request h
+                WHERE h.request_time >= ?
+                {http_search_condition}
+                {type_condition}
+                ORDER BY h.request_time DESC
+                LIMIT ?
+            """, [start_time.strftime('%Y-%m-%d %H:%M:%S')] + http_search_params + [limit])
+            
+            http_logs = []
+            for row in c.fetchall():
+                http_logs.append({
+                    'id': row[0],
+                    'content': f"{row[1]} {row[2]}",
+                    'response': row[4],
+                    'timestamp': row[3],
+                    'type': 'http'
+                })
+        else:
+            http_logs = []
         
         # 获取最近的MySQL命令
-        c.execute("""
-            SELECT 
-                command_id,
-                command,
-                response,
-                timestamp,
-                command_type
-            FROM mysql_command
-            ORDER BY timestamp DESC
-            LIMIT ?
-        """, (limit,))
+        if level in ['all', 'mysql']:
+            mysql_search_condition = ""
+            mysql_search_params = []
+            if search:
+                mysql_search_condition = "AND (mc.command LIKE ? OR mc.response LIKE ?)"
+                mysql_search_params = [f"%{search}%", f"%{search}%"]
+            
+            c.execute(f"""
+                SELECT 
+                    mc.command_id,
+                    mc.command,
+                    mc.response,
+                    mc.timestamp,
+                    mc.command_type
+                FROM mysql_command mc
+                WHERE mc.timestamp >= ?
+                {mysql_search_condition}
+                {type_condition}
+                ORDER BY mc.timestamp DESC
+                LIMIT ?
+            """, [start_time.strftime('%Y-%m-%d %H:%M:%S')] + mysql_search_params + [limit])
+            
+            mysql_logs = []
+            for row in c.fetchall():
+                mysql_logs.append({
+                    'id': row[0],
+                    'content': f"MySQL命令: {row[1]}",
+                    'response': row[2] if row[2] else '无响应',
+                    'timestamp': row[3],
+                    'type': 'mysql'
+                })
+        else:
+            mysql_logs = []
         
-        mysql_logs = []
-        for row in c.fetchall():
-            mysql_logs.append({
-                'id': row[0],
-                'content': f"MySQL命令: {row[1]}",
-                'response': row[2] if row[2] else '无响应',
-                'timestamp': row[3],
-                'type': 'mysql'
-            })
+        # 获取SSH会话日志
+        if level in ['all', 'ssh']:
+            ssh_search_condition = ""
+            ssh_search_params = []
+            if search:
+                ssh_search_condition = "AND (s.username LIKE ? OR s.src_ip LIKE ?)"
+                ssh_search_params = [f"%{search}%", f"%{search}%"]
+            
+            c.execute(f"""
+                SELECT 
+                    s.id,
+                    s.username,
+                    s.time_date,
+                    s.src_ip,
+                    'SSH会话' as content,
+                    'SSH连接' as response
+                FROM ssh_session s
+                WHERE s.time_date >= ?
+                {ssh_search_condition}
+                {type_condition}
+                ORDER BY s.time_date DESC
+                LIMIT ?
+            """, [start_time.strftime('%Y-%m-%d %H:%M:%S')] + ssh_search_params + [limit])
+            
+            ssh_logs = []
+            for row in c.fetchall():
+                ssh_logs.append({
+                    'id': row[0],
+                    'content': f"SSH会话: {row[1]}@{row[3]}",
+                    'response': row[5],
+                    'timestamp': row[2],
+                    'type': 'ssh'
+                })
+        else:
+            ssh_logs = []
+        
+        # 获取POP3会话日志
+        if level in ['all', 'pop3']:
+            pop3_search_condition = ""
+            pop3_search_params = []
+            if search:
+                pop3_search_condition = "AND (p.username LIKE ? OR p.src_ip LIKE ?)"
+                pop3_search_params = [f"%{search}%", f"%{search}%"]
+            
+            c.execute(f"""
+                SELECT 
+                    p.id,
+                    p.username,
+                    p.time_date,
+                    p.src_ip,
+                    'POP3会话' as content,
+                    'POP3连接' as response
+                FROM pop3_session p
+                WHERE p.time_date >= ?
+                {pop3_search_condition}
+                {type_condition}
+                ORDER BY p.time_date DESC
+                LIMIT ?
+            """, [start_time.strftime('%Y-%m-%d %H:%M:%S')] + pop3_search_params + [limit])
+            
+            pop3_logs = []
+            for row in c.fetchall():
+                pop3_logs.append({
+                    'id': row[0],
+                    'content': f"POP3会话: {row[1]}@{row[3]}",
+                    'response': row[5],
+                    'timestamp': row[2],
+                    'type': 'pop3'
+                })
+        else:
+            pop3_logs = []
         
         # 合并并排序所有日志
-        all_logs = command_logs + http_logs + mysql_logs
+        all_logs = command_logs + http_logs + mysql_logs + ssh_logs + pop3_logs
         all_logs.sort(key=lambda x: x['timestamp'], reverse=True)
         
         return jsonify({
             'logs': all_logs[:limit],
-            'total': len(all_logs)
+            'total': len(all_logs),
+            'filtered_count': len(all_logs[:limit])
         })
         
     except Exception as e:
@@ -643,4 +773,171 @@ def get_session_commands(session_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close() 
+        conn.close()
+
+@honeypot_api_bp.route('/export-report', methods=['GET'])
+@login_required
+def export_honeypot_report():
+    """导出蜜罐分析报告"""
+    report_type = request.args.get('type', 'csv')  # csv, json
+    time_range = request.args.get('time_range', '24')  # 小时数
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    try:
+        # 计算时间范围
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=int(time_range))
+        
+        # 收集报告数据
+        report_data = {
+            'report_info': {
+                'title': '蜜罐网络安全分析报告',
+                'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'time_range': f'最近{time_range}小时'
+            },
+            'overview_stats': {},
+            'service_distribution': {},
+            'attack_analysis': {},
+            'top_attackers': []
+        }
+        
+        # 概览统计
+        c.execute("""
+            SELECT 
+                (SELECT COUNT(*) FROM ssh_session WHERE time_date >= ?) +
+                (SELECT COUNT(*) FROM http_session WHERE start_time >= ?) +
+                (SELECT COUNT(*) FROM mysql_session WHERE time_date >= ?) +
+                (SELECT COUNT(*) FROM pop3_session WHERE time_date >= ?) as total_sessions
+        """, (start_time.strftime('%Y-%m-%d %H:%M:%S'),) * 4)
+        total_sessions = c.fetchone()[0] or 0
+        
+        c.execute("""
+            SELECT COUNT(*) FROM events 
+            WHERE severity IN ('high', 'medium') AND timestamp >= ?
+        """, (start_time.strftime('%Y-%m-%d %H:%M:%S'),))
+        total_attacks = c.fetchone()[0] or 0
+        
+        report_data['overview_stats'] = {
+            'total_sessions': total_sessions,
+            'total_attacks': total_attacks
+        }
+        
+        # 服务分布
+        c.execute("""
+            SELECT 'SSH' as service_type, COUNT(*) as count FROM ssh_session WHERE time_date >= ?
+            UNION ALL
+            SELECT 'HTTP' as service_type, COUNT(*) as count FROM http_session WHERE start_time >= ?
+            UNION ALL
+            SELECT 'MySQL' as service_type, COUNT(*) as count FROM mysql_session WHERE time_date >= ?
+            UNION ALL
+            SELECT 'POP3' as service_type, COUNT(*) as count FROM pop3_session WHERE time_date >= ?
+            ORDER BY count DESC
+        """, (start_time.strftime('%Y-%m-%d %H:%M:%S'),) * 4)
+        
+        service_data = c.fetchall()
+        report_data['service_distribution'] = {
+            'services': [row[0] for row in service_data],
+            'counts': [row[1] for row in service_data]
+        }
+        
+        # 攻击分析
+        c.execute("""
+            SELECT event_type, COUNT(*) as count
+            FROM events 
+            WHERE event_type IS NOT NULL AND event_type != '' AND timestamp >= ?
+            GROUP BY event_type
+            ORDER BY count DESC
+            LIMIT 10
+        """, (start_time.strftime('%Y-%m-%d %H:%M:%S'),))
+        
+        attack_data = c.fetchall()
+        report_data['attack_analysis'] = {
+            'attack_types': [row[0] for row in attack_data],
+            'counts': [row[1] for row in attack_data]
+        }
+        
+        # 顶级攻击者
+        c.execute("""
+            SELECT 
+                src_ip,
+                COUNT(*) as session_count,
+                'SSH' as service_type
+            FROM ssh_session 
+            WHERE src_ip IS NOT NULL AND src_ip != '' AND time_date >= ?
+            GROUP BY src_ip
+            UNION ALL
+            SELECT 
+                client_ip as src_ip,
+                COUNT(*) as session_count,
+                'HTTP' as service_type
+            FROM http_session 
+            WHERE client_ip IS NOT NULL AND client_ip != '' AND start_time >= ?
+            GROUP BY client_ip
+            ORDER BY session_count DESC
+            LIMIT 10
+        """, (start_time.strftime('%Y-%m-%d %H:%M:%S'),) * 2)
+        
+        for row in c.fetchall():
+            report_data['top_attackers'].append({
+                'ip_address': row[0],
+                'session_count': row[1],
+                'service_type': row[2]
+            })
+        
+        if report_type == 'json':
+            return jsonify(report_data)
+        else:
+            return generate_csv_report(report_data)
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+def generate_csv_report(report_data):
+    """生成CSV格式的报告"""
+    from flask import Response
+    
+    csv_content = []
+    
+    # 报告信息
+    csv_content.append("蜜罐网络安全分析报告")
+    csv_content.append(f"生成时间: {report_data['report_info']['generated_at']}")
+    csv_content.append(f"时间范围: {report_data['report_info']['time_range']}")
+    csv_content.append("")
+    
+    # 概览统计
+    csv_content.append("概览统计")
+    csv_content.append("指标,数值")
+    csv_content.append(f"总会话数,{report_data['overview_stats']['total_sessions']}")
+    csv_content.append(f"攻击事件,{report_data['overview_stats']['total_attacks']}")
+    csv_content.append("")
+    
+    # 服务分布
+    csv_content.append("服务分布")
+    csv_content.append("服务类型,会话数量")
+    for i, service in enumerate(report_data['service_distribution']['services']):
+        csv_content.append(f"{service},{report_data['service_distribution']['counts'][i]}")
+    csv_content.append("")
+    
+    # 攻击分析
+    csv_content.append("攻击类型分析")
+    csv_content.append("攻击类型,次数")
+    for i, attack_type in enumerate(report_data['attack_analysis']['attack_types']):
+        csv_content.append(f"{attack_type},{report_data['attack_analysis']['counts'][i]}")
+    csv_content.append("")
+    
+    # 顶级攻击者
+    csv_content.append("顶级攻击者")
+    csv_content.append("IP地址,会话数量,服务类型")
+    for attacker in report_data['top_attackers']:
+        csv_content.append(f"{attacker['ip_address']},{attacker['session_count']},{attacker['service_type']}")
+    
+    csv_text = '\n'.join(csv_content)
+    
+    response = Response(csv_text, mimetype='text/csv')
+    response.headers['Content-Disposition'] = f'attachment; filename=honeypot_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    
+    return response 

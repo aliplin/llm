@@ -4,24 +4,36 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dccf8e25-33ba-4928-9648-472f476539ae" name="Changes" comment="页面进一步优化，提高了页面响应速度，蜜罐日志分析页面尚未修改">
+    <list default="true" id="dccf8e25-33ba-4928-9648-472f476539ae" name="Changes" comment="新增LLM状态页面，完善蜜罐日志分析页面，提升ids系统响应">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/dashboard.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/events.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/events.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/api/honeypot.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/api/honeypot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/routes/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/routes/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/utils/database_init.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/utils/database_init.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/services/packet_sniffer.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/services/packet_sniffer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/services/socket_events.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/services/socket_events.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/packet_stats.db" beforeDir="false" afterPath="$PROJECT_DIR$/data/packet_stats.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ids_llm.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/data/schema.sql" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/events.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/events.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/honeypot_log_analysis.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/honeypot_log_analysis.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/llm_status.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/llm_status.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/realtime.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/realtime.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/rules.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/rules.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FlaskConsoleOptions" custom-start-script="import sys; print('Python %s on %s' % (sys.version, sys.platform)); sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;from flask.cli import ScriptInfo, NoAppException&#10;for module in [&quot;main.py&quot;, &quot;wsgi.py&quot;, &quot;app.py&quot;]:&#10;    try: locals().update(ScriptInfo(app_import_path=module, create_app=None).load_app().make_shell_context()); print(&quot;\nFlask App: %s&quot; % app.import_name); break&#10;    except NoAppException: pass">
+    <envs>
+      <env key="FLASK_APP" value="app" />
+    </envs>
+    <option name="myCustomStartScript" value="import sys; print('Python %s on %s' % (sys.version, sys.platform)); sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;from flask.cli import ScriptInfo, NoAppException&#10;for module in [&quot;main.py&quot;, &quot;wsgi.py&quot;, &quot;app.py&quot;]:&#10;    try: locals().update(ScriptInfo(app_import_path=module, create_app=None).load_app().make_shell_context()); print(&quot;\nFlask App: %s&quot; % app.import_name); break&#10;    except NoAppException: pass" />
+    <option name="myEnvs">
+      <map>
+        <entry key="FLASK_APP" value="app" />
+      </map>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
@@ -38,28 +50,41 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.check_db_structure.executor": "Run",
     "Python.check_events.executor": "Run",
     "Python.check_rules.executor": "Run",
     "Python.clean_rules_duplicates.executor": "Run",
     "Python.run.executor": "Run",
     "Python.start_ids.executor": "Run",
+    "Python.test_export_report.executor": "Run",
+    "Python.test_honeypot_logs.executor": "Run",
+    "Python.test_realtime.executor": "Run",
     "Python.test_routes.executor": "Run",
+    "Python.test_rules.executor": "Run",
+    "Python.test_rules_no_login.executor": "Run",
+    "Python.test_rules_simple.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "master",
-    "last_opened_file_path": "E:/GitDownload/llm/IDS/IDS_Project",
+    "last_opened_file_path": "E:/GitDownload/llm/IDS/IDS_Project/data",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "database.query.execution",
     "vue.rearranger.settings.migration": "true"
+  },
+  "keyToStringList": {
+    "DatabaseDriversLRU": [
+      "sqlite"
+    ]
   }
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="E:\GitDownload\llm\IDS\IDS_Project" />
       <recent name="E:\GitDownload\llm\IDS\IDS_Project\data" />
+      <recent name="E:\GitDownload\llm\IDS\IDS_Project" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="E:\GitDownload\llm\IDS\IDS_Project\data" />
@@ -88,7 +113,8 @@
       <option name="presentableId" value="Default" />
       <updated>1751102398073</updated>
       <workItem from="1751102399174" duration="11726000" />
-      <workItem from="1751161123350" duration="3889000" />
+      <workItem from="1751161123350" duration="6772000" />
+      <workItem from="1751179972922" duration="7266000" />
     </task>
     <task id="LOCAL-00001" summary="页面进一步优化，提高了页面响应速度，蜜罐日志分析页面尚未修改">
       <option name="closed" value="true" />
@@ -98,7 +124,23 @@
       <option name="project" value="LOCAL" />
       <updated>1751114011994</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="新增LLM状态页面，完善蜜罐日志分析页面，提升ids系统响应">
+      <option name="closed" value="true" />
+      <created>1751165223363</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1751165223363</updated>
+    </task>
+    <task id="LOCAL-00003" summary="新增LLM状态页面，完善蜜罐日志分析页面，提升ids系统响应">
+      <option name="closed" value="true" />
+      <created>1751165247592</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1751165247592</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -117,14 +159,22 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="页面进一步优化，提高了页面响应速度，蜜罐日志分析页面尚未修改" />
-    <option name="LAST_COMMIT_MESSAGE" value="页面进一步优化，提高了页面响应速度，蜜罐日志分析页面尚未修改" />
+    <MESSAGE value="新增LLM状态页面，完善蜜罐日志分析页面，提升ids系统响应" />
+    <option name="LAST_COMMIT_MESSAGE" value="新增LLM状态页面，完善蜜罐日志分析页面，提升ids系统响应" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/IDS_Project$check_db_structure.coverage" NAME="check_db_structure Coverage Results" MODIFIED="1751181661875" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_realtime.coverage" NAME="test_realtime Coverage Results" MODIFIED="1751186703558" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$clean_rules_duplicates.coverage" NAME="clean_rules_duplicates Coverage Results" MODIFIED="1751164336974" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_routes.coverage" NAME="test_routes Coverage Results" MODIFIED="1751105853442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_rules.coverage" NAME="test_rules Coverage Results" MODIFIED="1751183847951" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/IDS_Project$check_events.coverage" NAME="check_events Coverage Results" MODIFIED="1751112498036" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/IDS_Project$start_ids.coverage" NAME="start_ids Coverage Results" MODIFIED="1751106357038" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/IDS_Project$run.coverage" NAME="run Coverage Results" MODIFIED="1751164645674" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/IDS_Project$test_routes.coverage" NAME="test_routes Coverage Results" MODIFIED="1751105853442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/IDS_Project$clean_rules_duplicates.coverage" NAME="clean_rules_duplicates Coverage Results" MODIFIED="1751164336974" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$run.coverage" NAME="run Coverage Results" MODIFIED="1751187278000" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_rules_no_login.coverage" NAME="test_rules_no_login Coverage Results" MODIFIED="1751184801485" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_rules_simple.coverage" NAME="test_rules_simple Coverage Results" MODIFIED="1751185896231" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/IDS_Project$check_rules.coverage" NAME="check_rules Coverage Results" MODIFIED="1751164387380" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_honeypot_logs.coverage" NAME="test_honeypot_logs Coverage Results" MODIFIED="1751181675146" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/IDS_Project$test_export_report.coverage" NAME="test_export_report Coverage Results" MODIFIED="1751182580422" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

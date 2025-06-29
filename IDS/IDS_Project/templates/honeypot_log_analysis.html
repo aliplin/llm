@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -307,15 +308,82 @@
 
                 <!-- 实时日志流 -->
                 <div class="bg-white rounded-xl p-5 card-shadow">
-                    <h3><i class="fa fa-stream"></i> 实时日志流</h3>
-                    <div class="log-filters flex flex-wrap mb-4">
-                        <button class="log-filter active" data-level="all">全部</button>
-                        <button class="log-filter" data-level="command">命令</button>
-                        <button class="log-filter" data-level="http">HTTP</button>
-                        <button class="log-filter" data-level="mysql">MySQL</button>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3><i class="fa fa-stream"></i> 实时日志流</h3>
+                        <div class="flex items-center gap-2">
+                            <button id="exportLogsBtn" class="btn btn-outline text-sm">
+                                <i class="fa fa-download"></i> 导出日志
+                            </button>
+                            <button id="clearLogsBtn" class="btn btn-outline text-sm">
+                                <i class="fa fa-trash"></i> 清空
+                            </button>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="checkbox" id="autoScroll" checked class="rounded">
+                                <span>自动滚动</span>
+                            </label>
+                        </div>
                     </div>
-                    <div id="realtimeLogs" class="log-container">
+                    
+                    <!-- 搜索和过滤区域 -->
+                    <div class="mb-4">
+                        <div class="flex flex-wrap gap-4 items-center">
+                            <!-- 日志类型过滤 -->
+                            <div class="flex flex-wrap gap-2">
+                                <button class="log-filter active" data-level="all">全部</button>
+                                <button class="log-filter" data-level="command">命令</button>
+                                <button class="log-filter" data-level="http">HTTP</button>
+                                <button class="log-filter" data-level="mysql">MySQL</button>
+                                <button class="log-filter" data-level="ssh">SSH</button>
+                                <button class="log-filter" data-level="pop3">POP3</button>
+                            </div>
+                            
+                            <!-- 搜索框 -->
+                            <div class="flex-1 min-w-64">
+                                <div class="relative">
+                                    <input type="text" id="logSearch" placeholder="搜索日志内容..." 
+                                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    <i class="fa fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- 时间范围 -->
+                            <select id="logTimeRange" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="1">最近1小时</option>
+                                <option value="6">最近6小时</option>
+                                <option value="24" selected>最近24小时</option>
+                                <option value="168">最近7天</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- 日志统计 -->
+                    <div class="flex justify-between items-center mb-3 text-sm text-gray-600">
+                        <span>显示 <span id="logCount">0</span> 条日志</span>
+                        <span>最后更新: <span id="lastLogUpdate">--</span></span>
+                    </div>
+                    
+                    <!-- 日志容器 -->
+                    <div id="realtimeLogs" class="log-container bg-gray-50 rounded-lg border border-gray-200">
                         <div class="text-gray-500 text-center py-10">加载中...</div>
+                    </div>
+                </div>
+
+                <!-- 日志详情模态框 -->
+                <div id="logDetailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+                    <div class="flex items-center justify-center min-h-screen p-4">
+                        <div class="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+                            <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold">日志详情</h3>
+                                <button id="closeLogModal" class="text-gray-400 hover:text-gray-600">
+                                    <i class="fa fa-times text-xl"></i>
+                                </button>
+                            </div>
+                            <div class="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                                <div id="logDetailContent">
+                                    <!-- 日志详情内容将在这里动态加载 -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -365,20 +433,30 @@
         let serviceDistributionChart = null;
         let attackTypesChart = null;
         let sessionsTrendChart = null;
+        let currentLogs = []; // 存储当前日志数据
+        let logSearchTimeout = null; // 搜索防抖
+        let socket = null; // WebSocket连接
 
         // 初始化仪表板
         async function initializeDashboard() {
             console.log('Initializing dashboard...');
+            
+            // 初始化WebSocket连接
+            initWebSocket();
+            
             await updateStats();
             await initializeCharts();
             setupEventListeners();
             updateLastUpdateTime();
 
-            // 设置定时刷新
+            // 设置定时刷新（作为WebSocket的备用方案）
             setInterval(async () => {
                 await updateStats();
                 await updateCharts();
-                await loadRealtimeLogs();
+                // 如果WebSocket未连接，则使用轮询
+                if (!socket || !socket.connected) {
+                    await loadRealtimeLogs();
+                }
                 updateLastUpdateTime();
             }, 30000); // 每30秒刷新一次
         }
@@ -477,8 +555,10 @@
                 }
                 // 更新会话趋势图表
                 await loadSessionTrendChart();
-                // 更新实时日志
-                await loadRealtimeLogs();
+                // 更新实时日志（仅在WebSocket未连接时）
+                if (!socket || !socket.connected) {
+                    await loadRealtimeLogs();
+                }
             } catch (error) {
                 console.error('Error updating charts:', error);
             }
@@ -567,47 +647,21 @@
             }
         }
 
-        // 加载实时日志
+        // 加载实时日志（轮询方式，作为WebSocket的备用）
         async function loadRealtimeLogs() {
             try {
                 const selectedLevel = document.querySelector('.log-filter.active').dataset.level;
-                const response = await fetch(`/api/realtime-logs?level=${selectedLevel}`);
+                const timeRange = document.getElementById('logTimeRange').value;
+                const searchTerm = document.getElementById('logSearch').value;
+                
+                const response = await fetch(`/api/realtime-logs?level=${selectedLevel}&time_range=${timeRange}&search=${encodeURIComponent(searchTerm)}`);
                 const data = await response.json();
 
-                const logsContainer = document.getElementById('realtimeLogs');
-
-                // 清空现有日志
-                logsContainer.innerHTML = '';
-
-                if (!data.logs || data.logs.length === 0) {
-                    logsContainer.innerHTML = '<div class="text-gray-500 text-center py-10">暂无日志数据</div>';
-                    return;
-                }
-
-                data.logs.forEach(log => {
-                    const logElement = document.createElement('div');
-                    logElement.className = `log-entry p-3 border-b border-gray-100 ${getLogTypeClass(log.type)}`;
-
-                    const timestamp = new Date(log.timestamp).toLocaleString();
-
-                    logElement.innerHTML = `
-                        <div class="flex justify-between items-start mb-1">
-                            <span class="font-medium">${log.type.toUpperCase()}</span>
-                            <span class="text-xs text-gray-500">${timestamp}</span>
-                        </div>
-                        <p class="text-sm">${log.content}</p>
-                        ${log.response ? `<p class="text-sm text-gray-600 mt-1">响应: ${log.response.substring(0, 100)}${log.response.length > 100 ? '...' : ''}</p>` : ''}
-                        <div class="flex justify-between items-center mt-2">
-                            <span class="text-xs ${getLogTypeTextClass(log.type)}">${log.type.toUpperCase()}</span>
-                            <span class="text-xs text-gray-500">ID: ${log.id}</span>
-                        </div>
-                    `;
-
-                    logsContainer.appendChild(logElement);
-                });
-
-                // 滚动到底部
-                logsContainer.scrollTop = logsContainer.scrollHeight;
+                // 保存当前日志数据
+                currentLogs = data.logs || [];
+                
+                // 更新日志显示
+                updateLogDisplay();
             } catch (error) {
                 console.error('Error fetching realtime logs:', error);
                 document.getElementById('realtimeLogs').innerHTML = '<div class="text-red-500 text-center py-10">加载日志失败</div>';
@@ -660,6 +714,9 @@
                 showNotification('数据已刷新');
             });
 
+            // 导出报告按钮
+            document.getElementById('exportBtn').addEventListener('click', exportReport);
+
             // 服务筛选按钮
             document.querySelectorAll('.service-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -679,8 +736,46 @@
                 filter.addEventListener('click', () => {
                     document.querySelectorAll('.log-filter').forEach(f => f.classList.remove('active'));
                     filter.classList.add('active');
-                    loadRealtimeLogs();
+                    // 使用实时更新显示
+                    updateLogDisplay();
                 });
+            });
+
+            // 日志时间范围选择
+            document.getElementById('logTimeRange').addEventListener('change', () => {
+                // 重新加载日志数据
+                loadRealtimeLogs();
+            });
+
+            // 日志搜索
+            document.getElementById('logSearch').addEventListener('input', () => {
+                // 使用实时更新显示
+                updateLogDisplay();
+            });
+
+            // 导出日志按钮
+            document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
+
+            // 清空日志按钮
+            document.getElementById('clearLogsBtn').addEventListener('click', clearLogs);
+
+            // 关闭日志详情模态框
+            document.getElementById('closeLogModal').addEventListener('click', () => {
+                document.getElementById('logDetailModal').classList.add('hidden');
+            });
+
+            // 点击模态框背景关闭
+            document.getElementById('logDetailModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('logDetailModal')) {
+                    document.getElementById('logDetailModal').classList.add('hidden');
+                }
+            });
+
+            // ESC键关闭模态框
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    document.getElementById('logDetailModal').classList.add('hidden');
+                }
             });
 
             // 初始化时加载SSH会话详情
@@ -803,6 +898,249 @@
                 default:
                     return 'bg-blue-50 text-blue-800 border-l-4 border-blue-400';
             }
+        }
+
+        // 显示日志详情
+        function showLogDetail(log) {
+            const modal = document.getElementById('logDetailModal');
+            const content = document.getElementById('logDetailContent');
+            
+            const timestamp = new Date(log.timestamp).toLocaleString();
+            
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">日志类型</label>
+                            <p class="text-sm bg-gray-50 p-2 rounded">${log.type.toUpperCase()}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">时间戳</label>
+                            <p class="text-sm bg-gray-50 p-2 rounded">${timestamp}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">日志ID</label>
+                            <p class="text-sm bg-gray-50 p-2 rounded">${log.id}</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">内容</label>
+                        <div class="bg-gray-50 p-3 rounded font-mono text-sm whitespace-pre-wrap">${log.content}</div>
+                    </div>
+                    
+                    ${log.response ? `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">响应</label>
+                        <div class="bg-gray-50 p-3 rounded font-mono text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">${log.response}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+
+        // 导出报告
+        function exportReport() {
+            const timeRange = document.getElementById('timeRange').value;
+            const reportType = 'csv'; // 默认导出CSV格式
+            
+            // 显示加载状态
+            showNotification('正在生成报告...', 'info');
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.href = `/api/export-report?type=${reportType}&time_range=${timeRange}`;
+            link.download = `honeypot_report_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showNotification('报告导出成功', 'success');
+        }
+
+        // 导出日志
+        function exportLogs() {
+            if (!currentLogs || currentLogs.length === 0) {
+                showNotification('没有日志数据可导出', 'warning');
+                return;
+            }
+            
+            const csvContent = generateLogCSV(currentLogs);
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', `honeypot_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showNotification('日志导出成功', 'success');
+        }
+
+        // 生成CSV内容
+        function generateLogCSV(logs) {
+            const headers = ['ID', '类型', '时间戳', '内容', '响应'];
+            const rows = logs.map(log => [
+                log.id,
+                log.type,
+                new Date(log.timestamp).toLocaleString(),
+                `"${log.content.replace(/"/g, '""')}"`,
+                log.response ? `"${log.response.replace(/"/g, '""')}"` : ''
+            ]);
+            
+            return [headers, ...rows].map(row => row.join(',')).join('\n');
+        }
+
+        // 清空日志显示
+        function clearLogs() {
+            if (confirm('确定要清空当前显示的日志吗？')) {
+                currentLogs = [];
+                document.getElementById('realtimeLogs').innerHTML = '<div class="text-gray-500 text-center py-10">日志已清空</div>';
+                document.getElementById('logCount').textContent = '0';
+                showNotification('日志已清空', 'info');
+            }
+        }
+
+        // 搜索日志
+        function searchLogs() {
+            if (logSearchTimeout) {
+                clearTimeout(logSearchTimeout);
+            }
+            
+            logSearchTimeout = setTimeout(() => {
+                loadRealtimeLogs();
+            }, 300);
+        }
+
+        // 初始化WebSocket连接
+        function initWebSocket() {
+            try {
+                socket = io();
+                
+                socket.on('connect', () => {
+                    console.log('WebSocket连接成功');
+                    socket.emit('join_honeypot_logs');
+                    showNotification('实时连接已建立', 'success');
+                });
+                
+                socket.on('disconnect', () => {
+                    console.log('WebSocket连接断开');
+                    showNotification('实时连接已断开', 'warning');
+                });
+                
+                socket.on('new_honeypot_log', (logData) => {
+                    console.log('收到新日志:', logData);
+                    // 将新日志添加到列表顶部
+                    currentLogs.unshift(logData);
+                    
+                    // 限制日志数量，避免内存溢出
+                    if (currentLogs.length > 1000) {
+                        currentLogs = currentLogs.slice(0, 1000);
+                    }
+                    
+                    // 更新日志显示
+                    updateLogDisplay();
+                    
+                    // 显示通知
+                    showNotification(`新${logData.type}日志: ${logData.content.substring(0, 50)}...`, 'info');
+                });
+                
+                socket.on('log_stats_update', (stats) => {
+                    console.log('日志统计更新:', stats);
+                    // 更新统计信息
+                    updateLogStats(stats);
+                });
+                
+                socket.on('connected', (data) => {
+                    console.log('WebSocket连接确认:', data);
+                });
+                
+                socket.on('joined_room', (data) => {
+                    console.log('已加入房间:', data);
+                });
+                
+            } catch (error) {
+                console.error('WebSocket连接失败:', error);
+                showNotification('实时连接失败，将使用轮询模式', 'warning');
+            }
+        }
+
+        // 更新日志显示
+        function updateLogDisplay() {
+            const logsContainer = document.getElementById('realtimeLogs');
+            const selectedLevel = document.querySelector('.log-filter.active').dataset.level;
+            const searchTerm = document.getElementById('logSearch').value;
+            
+            // 过滤日志
+            let filteredLogs = currentLogs;
+            
+            // 按类型过滤
+            if (selectedLevel !== 'all') {
+                filteredLogs = filteredLogs.filter(log => log.type === selectedLevel);
+            }
+            
+            // 按搜索词过滤
+            if (searchTerm) {
+                filteredLogs = filteredLogs.filter(log => 
+                    log.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (log.response && log.response.toLowerCase().includes(searchTerm.toLowerCase()))
+                );
+            }
+            
+            // 更新日志统计
+            document.getElementById('logCount').textContent = filteredLogs.length;
+            document.getElementById('lastLogUpdate').textContent = new Date().toLocaleTimeString();
+            
+            // 清空现有日志
+            logsContainer.innerHTML = '';
+            
+            if (filteredLogs.length === 0) {
+                logsContainer.innerHTML = '<div class="text-gray-500 text-center py-10">暂无日志数据</div>';
+                return;
+            }
+            
+            // 显示过滤后的日志
+            filteredLogs.forEach(log => {
+                const logElement = document.createElement('div');
+                logElement.className = `log-entry p-3 border-b border-gray-100 ${getLogTypeClass(log.type)} cursor-pointer hover:bg-gray-50 transition-colors`;
+                logElement.onclick = () => showLogDetail(log);
+                
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                
+                logElement.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-medium">${log.type.toUpperCase()}</span>
+                        <span class="text-xs text-gray-500">${timestamp}</span>
+                    </div>
+                    <p class="text-sm">${log.content}</p>
+                    ${log.response ? `<p class="text-sm text-gray-600 mt-1">响应: ${log.response.substring(0, 100)}${log.response.length > 100 ? '...' : ''}</p>` : ''}
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-xs ${getLogTypeTextClass(log.type)}">${log.type.toUpperCase()}</span>
+                        <span class="text-xs text-gray-500">ID: ${log.id}</span>
+                    </div>
+                `;
+                
+                logsContainer.appendChild(logElement);
+            });
+            
+            // 自动滚动到底部（如果启用）
+            if (document.getElementById('autoScroll').checked) {
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            }
+        }
+
+        // 更新日志统计
+        function updateLogStats(stats) {
+            // 这里可以更新页面上的统计信息
+            console.log('更新日志统计:', stats);
         }
 
         document.addEventListener('DOMContentLoaded', initializeDashboard);

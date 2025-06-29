@@ -176,20 +176,15 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">事件类型</label>
                             <select id="eventType" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50">
                                 <option value="">全部类型</option>
-                                <option value="SQL注入尝试">SQL注入尝试</option>
-                                <option value="XSS攻击尝试">XSS攻击尝试</option>
-                                <option value="命令注入尝试">命令注入尝试</option>
-                                <option value="目录遍历尝试">目录遍历尝试</option>
-                                <option value="敏感文件访问">敏感文件访问</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">严重级别</label>
                             <select id="severity" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50">
                                 <option value="">全部级别</option>
-                                <option value="高">高</option>
-                                <option value="中">中</option>
-                                <option value="低">低</option>
+                                <option value="high">高</option>
+                                <option value="medium">中</option>
+                                <option value="low">低</option>
                             </select>
                         </div>
                         <div>
@@ -319,12 +314,6 @@
             loadEvents();
         }
 
-        // 导出事件
-        function exportEvents() {
-            const params = new URLSearchParams(currentFilters);
-            window.location.href = `/api/events/export?${params.toString()}`;
-        }
-
         // 清空事件
         function clearEvents() {
             if (confirm("确定要清空所有事件吗？此操作不可恢复！")) {
@@ -335,11 +324,11 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === "success") {
+                    if (data.message) {
                         showMessage('success', data.message);
                         applyFilters();
                     } else {
-                        showMessage('error', data.message || '清空失败');
+                        showMessage('error', data.error || '清空失败');
                     }
                 })
                 .catch(error => {
@@ -365,7 +354,6 @@
                 .then(response => {
                     console.log('Response status:', response.status);
                     
-                    // 检查是否需要重定向到登录页面
                     if (response.status === 401) {
                         showMessage('error', '请先登录');
                         setTimeout(() => {
@@ -381,7 +369,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    if (data === null) return; // 已处理重定向
+                    if (data === null) return;
                     
                     console.log('Received data:', data);
                     
@@ -426,7 +414,6 @@
             card.className = 'bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors cursor-pointer';
             card.onclick = () => viewEventDetails(event.id);
             
-            // 确定严重级别的样式
             const severityInfo = getSeverityInfo(event.severity);
             
             card.innerHTML = `
@@ -567,12 +554,16 @@
             fetch(`/api/events/${eventId}`)
                 .then(response => response.json())
                 .then(data => {
+                    if (data.error) {
+                        showMessage('error', data.error);
+                        return;
+                    }
+                    
                     const modalContent = document.getElementById('modalContent');
                     const severityInfo = getSeverityInfo(data.severity);
                     
                     modalContent.innerHTML = `
                         <div class="space-y-6">
-                            <!-- 事件基本信息 -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <p class="text-sm text-gray-500">事件ID</p>
@@ -594,7 +585,6 @@
                                 </div>
                             </div>
                             
-                            <!-- 请求信息 -->
                             <div>
                                 <h4 class="font-medium mb-3">请求信息</h4>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -619,13 +609,11 @@
                                 </div>
                             </div>
                             
-                            <!-- 匹配的模式 -->
                             <div>
                                 <h4 class="font-medium mb-3">匹配的模式</h4>
                                 <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">${data.rule_pattern || '未匹配到具体规则'}</pre>
                             </div>
                             
-                            <!-- 请求数据 -->
                             <div>
                                 <h4 class="font-medium mb-3">请求数据</h4>
                                 <div class="bg-gray-50 p-3 rounded-lg text-sm">
@@ -655,7 +643,11 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    showMessage('success', data.message || 'IP阻止成功');
+                    if (data.message) {
+                        showMessage('success', data.message);
+                    } else {
+                        showMessage('error', data.error || 'IP阻止失败');
+                    }
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -679,7 +671,7 @@
                         showMessage('success', data.message);
                         applyFilters();
                     } else {
-                        showMessage('error', '忽略事件失败');
+                        showMessage('error', data.error || '忽略事件失败');
                     }
                 })
                 .catch(error => {
@@ -750,15 +742,17 @@
             fetch('/api/events/types')
                 .then(response => response.json())
                 .then(eventTypes => {
-                    const select = document.getElementById('eventType');
-                    select.innerHTML = '<option value="">全部类型</option>';
-                    
-                    eventTypes.forEach(type => {
-                        const option = document.createElement('option');
-                        option.value = type;
-                        option.textContent = type;
-                        select.appendChild(option);
-                    });
+                    if (Array.isArray(eventTypes)) {
+                        const select = document.getElementById('eventType');
+                        select.innerHTML = '<option value="">全部类型</option>';
+                        
+                        eventTypes.forEach(type => {
+                            const option = document.createElement('option');
+                            option.value = type;
+                            option.textContent = type;
+                            select.appendChild(option);
+                        });
+                    }
                 })
                 .catch(error => {
                     console.error('Error loading event types:', error);
@@ -769,11 +763,9 @@
         function testAPI() {
             console.log('Testing API connection...');
             
-            // 测试基本API连接
             fetch('/api/events?page=1&per_page=5')
                 .then(response => {
                     console.log('API Response Status:', response.status);
-                    console.log('API Response Headers:', response.headers);
                     
                     if (response.status === 401) {
                         showMessage('error', 'API需要登录认证');

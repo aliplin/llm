@@ -8,6 +8,7 @@ from flask_login import login_required
 from ..utils.database import get_db_connection
 from datetime import datetime, timedelta
 import json
+import logging
 
 dashboard_api_bp = Blueprint('dashboard_api', __name__)
 
@@ -32,8 +33,9 @@ def get_realtime_logs():
         for row in c.fetchall():
             # 解析request_data JSON
             try:
-                request_data = json.loads(row[6]) if row[6] else {}
-            except:
+                request_data = json.loads(row[7]) if row[7] else {}
+            except Exception as e:
+                logging.warning(f"request_data解析失败: {e}, 原始值: {row[7]}")
                 request_data = {}
             
             # 映射严重级别为中文
@@ -42,26 +44,28 @@ def get_realtime_logs():
                 'medium': '中',
                 'high': '高'
             }
-            severity_cn = severity_map.get(row[7], row[7] or '低')
+            severity_cn = severity_map.get(row[8], row[8] or '低')
             
             events.append({
-                'id': row[0],
-                'timestamp': row[1],
-                'ip_address': row[2] or '-',
-                'user_agent': row[3] or '-',
-                'request_path': row[4] or '-',
-                'request_method': row[5] or '-',
-                'request_data': request_data,
-                'severity': severity_cn,
-                'status': row[8] or '-',
-                'event_type': row[9] or '未知类型',
-                'rule_name': row[10] or '-'
+                'id': row[0],                    # id
+                'rule_id': row[1],               # rule_id
+                'timestamp': row[2],             # timestamp
+                'ip_address': row[3] or '-',     # ip_address
+                'user_agent': row[4] or '-',     # user_agent
+                'request_path': row[5] or '-',   # request_path
+                'request_method': row[6] or '-', # request_method
+                'request_data': request_data,    # request_data
+                'severity': severity_cn,         # severity
+                'status': row[9] or '-',         # status
+                'event_type': row[10] or '未知类型', # event_type
+                'rule_name': row[11] or '-'      # rule_name (来自JOIN)
             })
         
         return jsonify(events)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取实时日志失败: {e}")
+        return jsonify({"error": f"获取实时日志失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -158,7 +162,8 @@ def get_index_stats():
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取仪表盘统计数据失败: {e}")
+        return jsonify({"error": f"获取仪表盘统计数据失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -212,7 +217,8 @@ def get_session_trend():
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取会话趋势数据失败: {e}")
+        return jsonify({"error": f"获取会话趋势数据失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -257,7 +263,8 @@ def get_dashboard_stats():
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取仪表盘统计数据失败: {e}")
+        return jsonify({"error": f"获取仪表盘统计数据失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -265,25 +272,27 @@ def get_dashboard_stats():
 @login_required
 def get_recent_events():
     """获取最近事件列表"""
+    limit = request.args.get('limit', 10, type=int)
     conn = get_db_connection()
     c = conn.cursor()
     
     try:
-        # 获取最近10条事件
+        # 获取最近事件
         c.execute("""
-            SELECT e.*, r.name as rule_name 
+            SELECT e.*, r.name as rule_name, r.pattern as rule_pattern
             FROM events e 
             LEFT JOIN rules r ON e.rule_id = r.id 
             ORDER BY e.timestamp DESC 
-            LIMIT 10
-        """)
+            LIMIT ?
+        """, (limit,))
         
         events = []
         for row in c.fetchall():
             # 解析request_data JSON
             try:
-                request_data = json.loads(row[6]) if row[6] else {}
-            except:
+                request_data = json.loads(row[7]) if row[7] else {}
+            except Exception as e:
+                logging.warning(f"request_data解析失败: {e}, 原始值: {row[7]}")
                 request_data = {}
             
             # 映射严重级别为中文
@@ -292,28 +301,32 @@ def get_recent_events():
                 'medium': '中',
                 'high': '高'
             }
-            severity_cn = severity_map.get(row[7], row[7] or '低')
+            severity_cn = severity_map.get(row[8], row[8] or '低')
             
             events.append({
-                'id': row[0],
-                'timestamp': row[1],
-                'ip_address': row[2] or '-',
-                'user_agent': row[3] or '-',
-                'request_path': row[4] or '-',
-                'request_method': row[5] or '-',
-                'request_data': request_data,
-                'severity': severity_cn,
-                'status': row[8] or '-',
-                'event_type': row[9] or '未知类型',
-                'rule_name': row[10] or '-'
+                'id': row[0],                    # id
+                'rule_id': row[1],               # rule_id
+                'timestamp': row[2],             # timestamp
+                'ip_address': row[3] or '-',     # ip_address
+                'user_agent': row[4] or '-',     # user_agent
+                'request_path': row[5] or '-',   # request_path
+                'request_method': row[6] or '-', # request_method
+                'request_data': request_data,    # request_data
+                'severity': severity_cn,         # severity
+                'status': row[9] or '-',         # status
+                'event_type': row[10] or '未知类型', # event_type
+                'rule_name': row[11] or '-',     # rule_name (来自JOIN)
+                'rule_pattern': row[12] or '-'   # rule_pattern (来自JOIN)
             })
         
         return jsonify({
-            'events': events
+            'events': events,
+            'total': len(events)
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取最近事件失败: {e}")
+        return jsonify({"error": f"获取最近事件失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -361,7 +374,8 @@ def get_trend_data():
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取趋势数据失败: {e}")
+        return jsonify({"error": f"获取趋势数据失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -388,7 +402,8 @@ def get_top_ips():
         return jsonify(top_ips)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取最活跃IP失败: {e}")
+        return jsonify({"error": f"获取最活跃IP失败: {str(e)}"}), 500
     finally:
         conn.close()
 
@@ -412,6 +427,7 @@ def get_severity_distribution():
         return jsonify(distribution)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"获取严重级别分布失败: {e}")
+        return jsonify({"error": f"获取严重级别分布失败: {str(e)}"}), 500
     finally:
         conn.close()
