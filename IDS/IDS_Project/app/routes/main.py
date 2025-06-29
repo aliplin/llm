@@ -73,4 +73,10 @@ def realtime():
 @login_required
 def honeypot_log_analysis():
     """蜜罐网络安全日志分析页面"""
-    return render_template('honeypot_log_analysis.html') 
+    return render_template('honeypot_log_analysis.html')
+
+@main_bp.route('/llm_status')
+@login_required
+def llm_status():
+    """LLM状态页面"""
+    return render_template('llm_status.html') 

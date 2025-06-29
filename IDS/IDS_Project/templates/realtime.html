@@ -92,6 +92,10 @@
                         <i class="fa fa-flask"></i>
                         <span>蜜罐网络安全日志分析</span>
                     </a>
+                    <a href="{{ url_for('main.llm_status') }}" class="sidebar-item">
+                        <i class="fa fa-brain"></i>
+                        <span>LLM状态</span>
+                    </a>
                     <a href="{{ url_for('events.events') }}" class="sidebar-item">
                         <i class="fa fa-list-alt"></i>
                         <span>事件日志</span>
@@ -399,16 +403,16 @@
             isMonitoring = true;
             document.getElementById('startMonitoring').disabled = true;
             document.getElementById('pauseMonitoring').disabled = false;
-            document.getElementById('startMonitoring').className = 'px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100';
-            document.getElementById('pauseMonitoring').className = 'px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700';
+            document.getElementById('startMonitoring').className = 'btn btn-outline';
+            document.getElementById('pauseMonitoring').className = 'btn btn-danger';
         });
 
         document.getElementById('pauseMonitoring').addEventListener('click', () => {
             isMonitoring = false;
             document.getElementById('startMonitoring').disabled = false;
             document.getElementById('pauseMonitoring').disabled = true;
-            document.getElementById('startMonitoring').className = 'px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700';
-            document.getElementById('pauseMonitoring').className = 'px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100';
+            document.getElementById('startMonitoring').className = 'btn btn-primary';
+            document.getElementById('pauseMonitoring').className = 'btn btn-outline';
         });
 
         document.getElementById('clearAll').addEventListener('click', () => {
@@ -455,4 +459,3 @@
     </script>
 </body>
 </html>
-

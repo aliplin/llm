@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -14,6 +14,14 @@
 </head>
 <body class="bg-gray-50">
     <div class="container mx-auto p-6">
+        <!-- 返回按钮 -->
+        <div class="mb-6">
+            <a href="{{ url_for('main.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200">
+                <i class="fa fa-arrow-left mr-2"></i>
+                返回仪表盘
+            </a>
+        </div>
+        
         <div class="mb-8">
             <h2 class="text-3xl font-bold mb-2">LLM分析状态</h2>
             <p class="text-gray-500">监控Kimi API使用情况和威胁检测分析状态</p>
@@ -89,6 +97,95 @@
                 </div>
                 <p class="text-xs text-gray-500 mt-2">今日SSH活动分析次数</p>
             </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">Shell会话</h3>
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                        <i class="fa fa-terminal"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="shell-sessions">0</p>
+                    <p class="text-green-600 flex items-center text-sm">
+                        <i class="fa fa-check mr-1"></i> 活跃
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">当前活跃的Shell会话数</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">命令执行</h3>
+                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                        <i class="fa fa-code"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="commands-executed">0</p>
+                    <p class="text-gray-600 flex items-center text-sm">
+                        <i class="fa fa-info-circle mr-1"></i> 总计
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">已执行的命令总数</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">LLM模型</h3>
+                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
+                        <i class="fa fa-brain"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="llm-model">moonshot-v1-8k</p>
+                    <p class="text-green-600 flex items-center text-sm">
+                        <i class="fa fa-shield mr-1"></i> 运行中
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">当前使用的LLM模型</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-gray-500 font-medium">攻击者</h3>
+                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                        <i class="fa fa-user-secret"></i>
+                    </div>
+                </div>
+                <div class="flex items-end justify-between">
+                    <p class="text-3xl font-bold" id="attackers">0</p>
+                    <p class="text-green-600 flex items-center text-sm">
+                        <i class="fa fa-shield mr-1"></i> 监控中
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">检测到的攻击者数量</p>
+            </div>
+        </div>
+
+        <!-- Shell会话详情 -->
+        <div class="bg-white rounded-xl p-5 card-shadow mb-6">
+            <h3 class="font-bold text-lg mb-6">Shell会话详情</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">会话ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SSH会话</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模型</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开始时间</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结束时间</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">攻击者ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shellSessionsTable" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500">加载中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- 系统状态和配置 -->
@@ -156,6 +253,72 @@
     </div>
 
     <script>
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadShellSessionData();
+            loadStatistics();
+            
+            // 每30秒刷新一次数据
+            setInterval(() => {
+                loadShellSessionData();
+                loadStatistics();
+            }, 30000);
+        });
+
+        // 加载Shell会话数据
+        async function loadShellSessionData() {
+            try {
+                const response = await fetch('/api/shell-sessions');
+                const data = await response.json();
+                
+                const tableBody = document.getElementById('shellSessionsTable');
+                tableBody.innerHTML = '';
+                
+                if (!data.sessions || data.sessions.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">暂无Shell会话数据</td></tr>';
+                    return;
+                }
+                
+                data.sessions.forEach(session => {
+                    const row = document.createElement('tr');
+                    const status = session.end_time ? '已结束' : '活跃';
+                    const statusClass = session.end_time ? 'text-gray-500' : 'text-green-600';
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${session.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${session.ssh_session_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${session.model}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${session.start_time}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${session.end_time || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${session.attacker_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${statusClass}">${status}</td>
+                    `;
+                    
+                    tableBody.appendChild(row);
+                });
+                
+            } catch (error) {
+                console.error('加载Shell会话数据失败:', error);
+                document.getElementById('shellSessionsTable').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">加载数据失败</td></tr>';
+            }
+        }
+
+        // 加载统计数据
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/llm-stats');
+                const data = await response.json();
+                
+                // 更新统计卡片
+                document.getElementById('shell-sessions').textContent = data.shell_sessions || 0;
+                document.getElementById('commands-executed').textContent = data.commands_executed || 0;
+                document.getElementById('attackers').textContent = data.attackers || 0;
+                
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
+            }
+        }
+
         // Token状态监控
         function updateTokenStatus() {
             fetch('/api/token_status')

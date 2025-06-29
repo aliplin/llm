@@ -106,6 +106,10 @@
                         <i class="fa fa-flask"></i>
                         <span>蜜罐网络安全日志分析</span>
                     </a>
+                    <a href="{{ url_for('main.llm_status') }}" class="sidebar-item">
+                        <i class="fa fa-brain"></i>
+                        <span>LLM状态</span>
+                    </a>
                     <a href="{{ url_for('events.events') }}" class="sidebar-item">
                         <i class="fa fa-list-alt"></i>
                         <span>事件日志</span>
@@ -306,12 +310,51 @@
                     <h3><i class="fa fa-stream"></i> 实时日志流</h3>
                     <div class="log-filters flex flex-wrap mb-4">
                         <button class="log-filter active" data-level="all">全部</button>
-                        <button class="log-filter" data-level="info">信息</button>
-                        <button class="log-filter" data-level="warning">警告</button>
-                        <button class="log-filter" data-level="error">错误</button>
+                        <button class="log-filter" data-level="command">命令</button>
+                        <button class="log-filter" data-level="http">HTTP</button>
+                        <button class="log-filter" data-level="mysql">MySQL</button>
                     </div>
                     <div id="realtimeLogs" class="log-container">
                         <div class="text-gray-500 text-center py-10">加载中...</div>
+                    </div>
+                </div>
+
+                <!-- 会话详情 -->
+                <div class="bg-white rounded-xl p-5 card-shadow mt-6">
+                    <h3><i class="fa fa-list"></i> 会话详情</h3>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <button class="service-btn active" data-service="ssh">
+                            <i class="fa fa-terminal"></i> SSH会话
+                        </button>
+                        <button class="service-btn" data-service="http">
+                            <i class="fa fa-globe"></i> HTTP会话
+                        </button>
+                        <button class="service-btn" data-service="mysql">
+                            <i class="fa fa-database"></i> MySQL会话
+                        </button>
+                        <button class="service-btn" data-service="pop3">
+                            <i class="fa fa-envelope"></i> POP3会话
+                        </button>
+                    </div>
+                    <div id="sessionDetails" class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">用户名/IP</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">源IP</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">目标IP</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">端口</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessionTableBody" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="7" class="px-6 py-4 text-center text-gray-500">选择服务类型查看会话详情</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </main>
@@ -346,8 +389,8 @@
                 const response = await fetch('/api/overview-stats');
                 const data = await response.json();
 
-                document.getElementById('total-sessions').textContent = data.total_sessions;
-                document.getElementById('total-attacks').textContent = data.total_attacks || data.total_sessions;
+                document.getElementById('total-sessions').textContent = data.total_sessions || 0;
+                document.getElementById('total-attacks').textContent = data.total_attacks || 0;
                 document.getElementById('active-sessions').textContent = data.active_sessions || 0;
             } catch (error) {
                 console.error('Error fetching stats:', error);
@@ -368,7 +411,7 @@
                         datasets: [
                             {
                                 data: data.service_distribution.data,
-                                backgroundColor: ['#165DFF', '#0FC6C2', '#F53F3F', '#FF7D00']
+                                backgroundColor: ['#165DFF', '#0FC6C2', '#F53F3F', '#FF7D00', '#00B42A', '#86909C']
                             }
                         ]
                     },
@@ -422,11 +465,13 @@
                 const data = await response.json();
                 // 更新服务分布图表
                 if (serviceDistributionChart) {
+                    serviceDistributionChart.data.labels = data.service_distribution.labels;
                     serviceDistributionChart.data.datasets[0].data = data.service_distribution.data;
                     serviceDistributionChart.update();
                 }
                 // 更新攻击类型图表
                 if (attackTypesChart) {
+                    attackTypesChart.data.labels = data.attack_types.labels;
                     attackTypesChart.data.datasets[0].data = data.attack_types.data;
                     attackTypesChart.update();
                 }
@@ -527,33 +572,34 @@
             try {
                 const selectedLevel = document.querySelector('.log-filter.active').dataset.level;
                 const response = await fetch(`/api/realtime-logs?level=${selectedLevel}`);
-                const logs = await response.json();
+                const data = await response.json();
 
                 const logsContainer = document.getElementById('realtimeLogs');
 
                 // 清空现有日志
                 logsContainer.innerHTML = '';
 
-                if (logs.length === 0) {
+                if (!data.logs || data.logs.length === 0) {
                     logsContainer.innerHTML = '<div class="text-gray-500 text-center py-10">暂无日志数据</div>';
                     return;
                 }
 
-                logs.forEach(log => {
+                data.logs.forEach(log => {
                     const logElement = document.createElement('div');
-                    logElement.className = `log-entry p-3 border-b border-gray-100 ${getLogLevelClass(log.level)}`;
+                    logElement.className = `log-entry p-3 border-b border-gray-100 ${getLogTypeClass(log.type)}`;
 
                     const timestamp = new Date(log.timestamp).toLocaleString();
 
                     logElement.innerHTML = `
                         <div class="flex justify-between items-start mb-1">
-                            <span class="font-medium">${log.source}</span>
+                            <span class="font-medium">${log.type.toUpperCase()}</span>
                             <span class="text-xs text-gray-500">${timestamp}</span>
                         </div>
-                        <p class="text-sm">${log.message}</p>
+                        <p class="text-sm">${log.content}</p>
+                        ${log.response ? `<p class="text-sm text-gray-600 mt-1">响应: ${log.response.substring(0, 100)}${log.response.length > 100 ? '...' : ''}</p>` : ''}
                         <div class="flex justify-between items-center mt-2">
-                            <span class="text-xs ${getLogLevelTextClass(log.level)}">${log.level.toUpperCase()}</span>
-                            <span class="text-xs text-gray-500">${log.ip || '-'}</span>
+                            <span class="text-xs ${getLogTypeTextClass(log.type)}">${log.type.toUpperCase()}</span>
+                            <span class="text-xs text-gray-500">ID: ${log.id}</span>
                         </div>
                     `;
 
@@ -568,29 +614,37 @@
             }
         }
 
-        // 获取日志级别对应的CSS类
-        function getLogLevelClass(level) {
-            switch (level.toLowerCase()) {
-                case 'info':
+        // 获取日志类型对应的CSS类
+        function getLogTypeClass(type) {
+            switch (type.toLowerCase()) {
+                case 'command':
                     return 'bg-blue-50';
-                case 'warning':
-                    return 'bg-yellow-50';
-                case 'error':
-                    return 'bg-red-50';
+                case 'http':
+                    return 'bg-green-50';
+                case 'ssh':
+                    return 'bg-purple-50';
+                case 'mysql':
+                    return 'bg-orange-50';
+                case 'pop3':
+                    return 'bg-pink-50';
                 default:
                     return '';
             }
         }
 
-        // 获取日志级别文本对应的CSS类
-        function getLogLevelTextClass(level) {
-            switch (level.toLowerCase()) {
-                case 'info':
+        // 获取日志类型文本对应的CSS类
+        function getLogTypeTextClass(type) {
+            switch (type.toLowerCase()) {
+                case 'command':
                     return 'text-blue-600';
-                case 'warning':
-                    return 'text-yellow-600';
-                case 'error':
-                    return 'text-red-600';
+                case 'http':
+                    return 'text-green-600';
+                case 'ssh':
+                    return 'text-purple-600';
+                case 'mysql':
+                    return 'text-orange-600';
+                case 'pop3':
+                    return 'text-pink-600';
                 default:
                     return 'text-gray-600';
             }
@@ -611,8 +665,9 @@
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.service-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
-                    // 这里可以添加服务筛选逻辑
-                    loadSessionTrendChart();
+                    // 加载会话详情
+                    const serviceType = btn.dataset.service;
+                    loadSessionDetails(serviceType);
                 });
             });
 
@@ -627,6 +682,70 @@
                     loadRealtimeLogs();
                 });
             });
+
+            // 初始化时加载SSH会话详情
+            loadSessionDetails('ssh');
+        }
+
+        // 加载会话详情
+        async function loadSessionDetails(serviceType) {
+            try {
+                const response = await fetch(`/api/session-details/${serviceType}`);
+                const data = await response.json();
+
+                const tableBody = document.getElementById('sessionTableBody');
+                tableBody.innerHTML = '';
+
+                if (!data.sessions || data.sessions.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">暂无会话数据</td></tr>';
+                    return;
+                }
+
+                data.sessions.forEach(session => {
+                    const row = document.createElement('tr');
+                    row.className = 'table-row';
+
+                    let usernameIp = session.username || session.client_ip || '-';
+                    let time = session.time_date || session.start_time || '-';
+                    let srcIp = session.src_ip || session.client_ip || '-';
+                    let dstIp = session.dst_ip || '-';
+                    let ports = '';
+                    
+                    if (session.src_port && session.dst_port) {
+                        ports = `${session.src_port} → ${session.dst_port}`;
+                    } else if (session.dst_port) {
+                        ports = `${session.dst_port}`;
+                    } else {
+                        ports = '-';
+                    }
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${session.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${usernameIp}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${time}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${srcIp}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${dstIp}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${ports}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-primary hover:text-primary/80" onclick="viewSessionDetails(${session.id}, '${serviceType}')">
+                                <i class="fa fa-eye"></i> 查看
+                            </button>
+                        </td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error('Error loading session details:', error);
+                document.getElementById('sessionTableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">加载会话详情失败</td></tr>';
+            }
+        }
+
+        // 查看会话详情
+        function viewSessionDetails(sessionId, serviceType) {
+            // 这里可以添加查看详细信息的逻辑
+            showNotification(`查看 ${serviceType.toUpperCase()} 会话 ${sessionId} 的详细信息`, 'info');
         }
 
         // 更新最后更新时间

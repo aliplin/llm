@@ -63,6 +63,7 @@ def create_app():
     from .api.events import events_api_bp
     from .api.rules import rules_api_bp
     from .api.dashboard import dashboard_api_bp
+    from .api.honeypot import honeypot_api_bp
     from .routes.main import main_bp
     from .routes.events import events_bp
     from .routes.rules import rules_bp
@@ -71,6 +72,7 @@ def create_app():
     app.register_blueprint(events_api_bp, url_prefix='/api')
     app.register_blueprint(rules_api_bp, url_prefix='/api')
     app.register_blueprint(dashboard_api_bp, url_prefix='/api')
+    app.register_blueprint(honeypot_api_bp, url_prefix='/api')
     app.register_blueprint(main_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(rules_bp)

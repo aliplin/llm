@@ -86,6 +86,10 @@
                         <i class="fa fa-flask"></i>
                         <span>蜜罐网络安全日志分析</span>
                     </a>
+                    <a href="{{ url_for('main.llm_status') }}" class="sidebar-item">
+                        <i class="fa fa-brain"></i>
+                        <span>LLM状态</span>
+                    </a>
                     <a href="{{ url_for('events.events') }}" class="sidebar-item">
                         <i class="fa fa-list-alt"></i>
                         <span>事件日志</span>
@@ -111,6 +115,21 @@
                     </a>
                 </div>
             </nav>
+
+            <div class="absolute bottom-0 w-64 p-4 border-t border-gray-200">
+                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <img src="https://picsum.photos/id/1005/40/40" alt="用户头像" class="w-10 h-10 rounded-full object-cover">
+                    <div>
+                        <p class="font-medium">{{ current_user.username }}</p>
+                        <p class="text-xs text-gray-500">管理员</p>
+                    </div>
+                    <div class="ml-auto">
+                        <a href="{{ url_for('auth.logout') }}" class="text-gray-400 hover:text-danger transition-colors">
+                            <i class="fa fa-sign-out"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </aside>
 
         <!-- 主内容区域 -->
@@ -286,7 +305,7 @@
             const rulePattern = document.getElementById('rulePattern').value;
             const ruleEventType = document.getElementById('ruleEventType').value;
             const ruleSeverity = document.getElementById('ruleSeverity').value;
-            const ruleStatus = document.getElementById('ruleStatus').checked ? 1 : 0;
+            const ruleStatus = document.getElementById('ruleStatus').checked;
 
             if (!ruleName || !rulePattern || !ruleEventType) {
                 alert('请填写所有必填字段');
@@ -294,28 +313,29 @@
             }
 
             // 发送添加规则请求
-            fetch('/rules/add', {
+            fetch('/api/rules', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/json',
                 },
-                body: new URLSearchParams({
-                    rule_name: ruleName,
+                body: JSON.stringify({
+                    name: ruleName,
                     pattern: rulePattern,
-                    event_type: ruleEventType,
+                    description: ruleEventType,
                     severity: ruleSeverity,
+                    category: ruleEventType,
                     enabled: ruleStatus
                 })
             })
            .then(response => response.json())
            .then(data => {
-                if (data.status === 'success') {
+                if (data.message) {
                     alert(data.message);
                     resetForm();
-                    // 刷新页面或更新规则列表
-                    location.reload();
+                    // 刷新规则列表
+                    loadRules();
                 } else {
-                    alert(data.message);
+                    alert('添加规则失败');
                 }
             })
            .catch(error => {
@@ -327,7 +347,7 @@
         // 编辑规则
         function editRule(ruleId) {
             // 从服务器获取规则详情
-            fetch(`/rules/details/${ruleId}`)
+            fetch(`/api/rules/${ruleId}`)
            .then(response => response.json())
            .then(data => {
                 const ruleDetails = data;
@@ -336,7 +356,7 @@
                 document.getElementById('editRuleId').value = ruleDetails.id;
                 document.getElementById('editRuleName').value = ruleDetails.name;
                 document.getElementById('editRulePattern').value = ruleDetails.pattern;
-                document.getElementById('editRuleEventType').value = ruleDetails.event_type;
+                document.getElementById('editRuleEventType').value = ruleDetails.description || '';
                 document.getElementById('editRuleSeverity').value = ruleDetails.severity;
                 document.getElementById('editRuleStatus').checked = ruleDetails.enabled;
 
@@ -361,7 +381,7 @@
             const rulePattern = document.getElementById('editRulePattern').value;
             const ruleEventType = document.getElementById('editRuleEventType').value;
             const ruleSeverity = document.getElementById('editRuleSeverity').value;
-            const ruleStatus = document.getElementById('editRuleStatus').checked ? 1 : 0;
+            const ruleStatus = document.getElementById('editRuleStatus').checked;
 
             if (!ruleName || !rulePattern || !ruleEventType) {
                 alert('请填写所有必填字段');
@@ -369,28 +389,29 @@
             }
 
             // 发送保存规则请求
-            fetch(`/rules/update/${ruleId}`, {
-                method: 'POST',
+            fetch(`/api/rules/${ruleId}`, {
+                method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/json',
                 },
-                body: new URLSearchParams({
-                    rule_name: ruleName,
+                body: JSON.stringify({
+                    name: ruleName,
                     pattern: rulePattern,
-                    event_type: ruleEventType,
+                    description: ruleEventType,
                     severity: ruleSeverity,
+                    category: ruleEventType,
                     enabled: ruleStatus
                 })
             })
            .then(response => response.json())
            .then(data => {
-                if (data.status === 'success') {
+                if (data.message) {
                     alert(data.message);
                     closeEditModal();
-                    // 刷新页面或更新规则列表
-                    location.reload();
+                    // 刷新规则列表
+                    loadRules();
                 } else {
-                    alert(data.message);
+                    alert('保存规则失败');
                 }
             })
            .catch(error => {
@@ -402,17 +423,17 @@
         // 切换规则状态
         function toggleRuleStatus(ruleId, currentStatus) {
             // 发送切换规则状态请求
-            fetch(`/rules/toggle/${ruleId}`, {
+            fetch(`/api/rules/${ruleId}/toggle`, {
                 method: 'POST'
             })
            .then(response => response.json())
            .then(data => {
-                if (data.status === 'success') {
+                if (data.message) {
                     alert(data.message);
-                    // 刷新页面或更新规则状态
-                    location.reload();
+                    // 刷新规则列表
+                    loadRules();
                 } else {
-                    alert(data.message);
+                    alert('切换规则状态失败');
                 }
             })
            .catch(error => {
@@ -424,17 +445,17 @@
         // 删除规则
         function deleteRule(ruleId) {
             if (confirm('确定要删除此规则吗？')) {
-                fetch(`/rules/delete/${ruleId}`, {
+                fetch(`/api/rules/${ruleId}`, {
                     method: 'DELETE'
                 })
                .then(response => response.json())
                .then(data => {
-                    if (data.status === 'success') {
+                    if (data.message) {
                         alert(data.message);
-                        // 刷新页面或更新规则列表
-                        location.reload();
+                        // 刷新规则列表
+                        loadRules();
                     } else {
-                        alert(data.message);
+                        alert('删除规则失败');
                     }
                 })
                .catch(error => {

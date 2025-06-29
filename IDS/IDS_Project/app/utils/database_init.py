@@ -54,6 +54,9 @@ def init_db():
             )
         """)
         
+        # 检查并创建蜜罐相关表
+        create_honeypot_tables(c)
+        
         # 检查并创建settings表
         c.execute("""
             CREATE TABLE IF NOT EXISTS settings (
@@ -91,6 +94,142 @@ def init_db():
         print(f"❌ 数据库初始化失败: {e}")
         return False
 
+def create_honeypot_tables(c):
+    """创建蜜罐相关的表"""
+    # 攻击者会话表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS attacker_session (
+            attacker_session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            src_ip VARCHAR(45)
+        )
+    """)
+    
+    # SSH会话表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS ssh_session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username VARCHAR(255),
+            time_date DATETIME,
+            src_ip VARCHAR(45),
+            dst_ip VARCHAR(45),
+            src_port INTEGER,
+            dst_port INTEGER
+        )
+    """)
+    
+    # Shell会话表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS shellm_session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ssh_session_id INTEGER,
+            model VARCHAR(255),
+            start_time DATETIME,
+            end_time DATETIME,
+            attacker_id INTEGER,
+            FOREIGN KEY (ssh_session_id) REFERENCES ssh_session (id),
+            FOREIGN KEY (attacker_id) REFERENCES attacker_session (attacker_session_id)
+        )
+    """)
+    
+    # 命令表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS commands (
+            command_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shellm_session_id INTEGER,
+            command TEXT,
+            FOREIGN KEY (shellm_session_id) REFERENCES shellm_session (id)
+        )
+    """)
+    
+    # 答案表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS answers (
+            answer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            command_id INTEGER,
+            answer TEXT,
+            FOREIGN KEY (command_id) REFERENCES commands (command_id)
+        )
+    """)
+    
+    # HTTP会话表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS http_session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_ip VARCHAR(45),
+            start_time DATETIME,
+            end_time DATETIME
+        )
+    """)
+    
+    # HTTP请求表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS http_request (
+            request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            http_session_id INTEGER,
+            method VARCHAR(16),
+            path VARCHAR(1024),
+            headers TEXT,
+            request_time DATETIME,
+            response TEXT,
+            FOREIGN KEY (http_session_id) REFERENCES http_session (id)
+        )
+    """)
+    
+    # POP3会话表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS pop3_session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username VARCHAR(255),
+            time_date DATETIME,
+            src_ip VARCHAR(45),
+            dst_ip VARCHAR(45),
+            src_port INTEGER,
+            dst_port INTEGER
+        )
+    """)
+    
+    # POP3命令表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS pop3_command (
+            command_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pop3_session_id INTEGER,
+            command TEXT,
+            response TEXT,
+            timestamp DATETIME,
+            FOREIGN KEY (pop3_session_id) REFERENCES pop3_session (id)
+        )
+    """)
+    
+    # MySQL会话表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS mysql_session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username VARCHAR(255),
+            time_date DATETIME,
+            src_ip VARCHAR(45),
+            dst_ip VARCHAR(45),
+            src_port INTEGER,
+            dst_port INTEGER,
+            database_name VARCHAR(255)
+        )
+    """)
+    
+    # MySQL命令表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS mysql_command (
+            command_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mysql_session_id INTEGER,
+            command TEXT,
+            response TEXT,
+            timestamp DATETIME,
+            command_type VARCHAR(50),
+            affected_rows INTEGER,
+            FOREIGN KEY (mysql_session_id) REFERENCES mysql_session (id)
+        )
+    """)
+    
+    print("✅ 蜜罐相关表创建完成")
+
 def check_database():
     """检查数据库状态"""
     try:
@@ -98,7 +237,12 @@ def check_database():
         c = conn.cursor()
         
         # 检查表是否存在
-        tables = ['users', 'events', 'rules', 'settings', 'packet_logs']
+        tables = [
+            'users', 'events', 'rules', 'settings', 'packet_logs',
+            'attacker_session', 'ssh_session', 'shellm_session', 
+            'commands', 'answers', 'http_session', 'http_request',
+            'pop3_session', 'pop3_command', 'mysql_session', 'mysql_command'
+        ]
         missing_tables = []
         
         for table in tables:
@@ -113,7 +257,26 @@ def check_database():
         # 检查用户数量
         c.execute("SELECT COUNT(*) FROM users")
         user_count = c.fetchone()[0]
-        print(f"✅ 数据库检查完成 - 用户数量: {user_count}")
+        
+        # 检查各服务会话数量
+        c.execute("SELECT COUNT(*) FROM ssh_session")
+        ssh_count = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM http_session")
+        http_count = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM mysql_session")
+        mysql_count = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM pop3_session")
+        pop3_count = c.fetchone()[0]
+        
+        print(f"✅ 数据库检查完成")
+        print(f"  - 用户数量: {user_count}")
+        print(f"  - SSH会话: {ssh_count}")
+        print(f"  - HTTP会话: {http_count}")
+        print(f"  - MySQL会话: {mysql_count}")
+        print(f"  - POP3会话: {pop3_count}")
         
         conn.close()
         return True

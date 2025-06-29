@@ -86,6 +86,10 @@
                         <i class="fa fa-flask"></i>
                         <span>蜜罐网络安全日志分析</span>
                     </a>
+                    <a href="{{ url_for('main.llm_status') }}" class="sidebar-item">
+                        <i class="fa fa-brain"></i>
+                        <span>LLM状态</span>
+                    </a>
                     <a href="{{ url_for('events.events') }}" class="sidebar-item active">
                         <i class="fa fa-list-alt"></i>
                         <span>事件日志</span>
@@ -111,6 +115,21 @@
                     </a>
                 </div>
             </nav>
+
+            <div class="absolute bottom-0 w-64 p-4 border-t border-gray-200">
+                <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <img src="https://picsum.photos/id/1005/40/40" alt="用户头像" class="w-10 h-10 rounded-full object-cover">
+                    <div>
+                        <p class="font-medium">{{ current_user.username }}</p>
+                        <p class="text-xs text-gray-500">管理员</p>
+                    </div>
+                    <div class="ml-auto">
+                        <a href="{{ url_for('auth.logout') }}" class="text-gray-400 hover:text-danger transition-colors">
+                            <i class="fa fa-sign-out"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </aside>
 
         <!-- 主内容 -->
