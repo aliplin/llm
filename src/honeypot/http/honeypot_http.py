@@ -2372,7 +2372,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
             request_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             # 获取项目根目录
             project_root = Path(__file__).parent.parent.parent
-            logs_dir = project_root / "src" / "log_manager" / "logs"
+            logs_dir = project_root / "logs"
             logs_dir.mkdir(exist_ok=True)
             session_uuid = str(uuid.uuid4())
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -2433,7 +2433,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
             request_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             # 获取项目根目录
             project_root = Path(__file__).parent.parent.parent
-            logs_dir = project_root / "src" / "log_manager" / "logs"
+            logs_dir = project_root / "logs"
             logs_dir.mkdir(exist_ok=True)
             session_uuid = str(uuid.uuid4())
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

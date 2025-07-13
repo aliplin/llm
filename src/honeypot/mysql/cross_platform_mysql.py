@@ -17,10 +17,10 @@ import yaml
 from pathlib import Path
 
 # 导入MySQL协议模块
-from protocol.base import OK, ERR, EOF
-from protocol.handshake import HandshakeV10, HandshakeResponse41
-from protocol.query import ColumnDefinition, ColumnDefinitionList, ResultSet
-from protocol import _MysqlStreamSequence, MysqlStreamReader, MysqlStreamWriter
+from .protocol.base import OK, ERR, EOF
+from .protocol.handshake import HandshakeV10, HandshakeResponse41
+from .protocol.query import ColumnDefinition, ColumnDefinitionList, ResultSet
+from .protocol import _MysqlStreamSequence, MysqlStreamReader, MysqlStreamWriter
 
 # 平台检测
 IS_WINDOWS = platform.system().lower() == 'windows'
@@ -158,7 +158,7 @@ class CrossPlatformMySQLHoneypot:
         }
         
         # 日志目录
-        self.logs_dir = project_root / "src" / "log_manager" / "logs"
+        self.logs_dir = project_root / "logs"
         self.logs_dir.mkdir(exist_ok=True)
 
     def mysql_get_file_content(self, filename, server_writer, capability, handshake_status, client_addr, log_file):

@@ -8,6 +8,7 @@ import yaml
 from dotenv import dotenv_values
 import tiktoken
 from openai import OpenAI
+from pathlib import Path
 
 # 设置 Kimi API 的基础 URL
 OpenAI.api_base = "https://api.moonshot.cn/v1"
@@ -56,10 +57,13 @@ def set_key(env_path):
 
 
 def read_history(identity, output_dir, reset_prompt):
-    history = open(output_dir, "a+", encoding="utf-8")
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    log_path = logs_dir / os.path.basename(output_dir)
+    history = open(log_path, "a+", encoding="utf-8")
     TOKEN_COUNT = 0
 
-    if os.stat(output_dir).st_size != 0:
+    if os.stat(log_path).st_size != 0:
         history.write(reset_prompt)
         history.seek(0)
         prompt = history.read()
@@ -68,7 +72,7 @@ def read_history(identity, output_dir, reset_prompt):
         encoding = tiktoken.get_encoding("cl100k_base")
         TOKEN_COUNT = len(encoding.encode(prompt))
 
-    if TOKEN_COUNT > 15100 or os.stat(output_dir).st_size == 0:
+    if TOKEN_COUNT > 15100 or os.stat(log_path).st_size == 0:
         prompt = identity['prompt']
         history.truncate(0)
 
@@ -111,10 +115,13 @@ def setParameters(identity, model_name, model_temperature, model_max_tokens, out
         if not output_dir:
             raise ValueError("配置文件中缺少 output 参数")
 
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
     if log_file is None:
         log_file = identity.get('log', '').strip()
         if not log_file:
             raise ValueError("配置文件中缺少 log 参数")
+    log_file = str(logs_dir / os.path.basename(log_file))
 
     return model_name, model_temperature, model_max_tokens, output_dir, log_file
 
@@ -241,8 +248,11 @@ def main():
         messages = [{"role": "system", "content": initial_prompt}]
 
         # 写入历史文件
-        history = open(output_dir, "a+", encoding="utf-8")
-        if os.stat(output_dir).st_size == 0:
+        logs_dir = Path(__file__).parent.parent.parent / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        log_path = logs_dir / os.path.basename(output_dir)
+        history = open(log_path, "a+", encoding="utf-8")
+        if os.stat(log_path).st_size == 0:
             for msg in messages:
                 history.write(msg["content"])
         else:
@@ -252,7 +262,10 @@ def main():
         # 主循环
         run = 1
         while run == 1:
-            logs = open(output_dir, "a+", encoding="utf-8")
+            logs_dir = Path(__file__).parent.parent.parent / "logs"
+            logs_dir.mkdir(exist_ok=True)
+            log_path = logs_dir / os.path.basename(output_dir)
+            logs = open(log_path, "a+", encoding="utf-8")
             try:
                 # 获取模型响应
                 res = client.chat.completions.create(
@@ -280,7 +293,7 @@ def main():
                 logs.close()
 
                 # 重新打开日志文件
-                logs = open(output_dir, "a+", encoding="utf-8")
+                logs = open(log_path, "a+", encoding="utf-8")
 
                 # 检查退出条件
                 if "will be reported" in last or "logout" in last and not "_logout" in last:
@@ -312,6 +325,9 @@ def main():
                 break
 
             except Exception as e:
+                logs_dir = Path(__file__).parent.parent.parent / "logs"
+                logs_dir.mkdir(exist_ok=True)
+                log_file = str(logs_dir / os.path.basename(log_file))
                 logfile = open(log_file, "a+", encoding="utf-8")
                 logfile.write("\n")
                 logfile.write(str(datetime.now()))

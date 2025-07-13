@@ -42,7 +42,7 @@ def send_mysql_text_result(sock, seq, text):
 def start_mysql(openai_client, mysql_identity, mysql_model, mysql_temp, mysql_max_tokens):
     # 获取项目根目录
     project_root = Path(__file__).parent.parent.parent
-    logs_dir = project_root / "src" / "log_manager" / "logs"
+    logs_dir = project_root / "logs"
     logs_dir.mkdir(exist_ok=True)
     mysql_port = int(mysql_identity.get('port', 3309))
 

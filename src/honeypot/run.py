@@ -22,10 +22,10 @@ import sys
 import struct
 from pathlib import Path
 
-from honeypot_ssh import handle_ssh_connection, SSH_USER,SSH_PASS,SSH_PORT
-from honeypot_http import start_http_server,HTTP_PORT
-from honeypot_pop3 import start_pop3
-from honeypot_mysql import start_mysql
+from .ssh.honeypot_ssh import handle_ssh_connection, SSH_USER,SSH_PASS,SSH_PORT
+from .http.honeypot_http import start_http_server,HTTP_PORT
+from .pop3.honeypot_pop3 import start_pop3
+from .mysql.honeypot_mysql import start_mysql
 
 # 设置 Kimi API 的基础 URL
 OpenAI.api_base = "https://api.moonshot.cn/v1"
@@ -139,10 +139,9 @@ def handle_cd_command(user_input, current_dir, username):
 
 def main():
     try:
-        env_path = '../../config/.env'
         # 获取项目根目录
         project_root = Path(__file__).parent.parent.parent
-        
+        env_path = project_root / "config" / ".env"
         # 读取配置文件
         with open(project_root / "config" / "configSSH.yml", 'r', encoding='utf-8') as f:
             ssh_identity = yaml.safe_load(f)['personality']

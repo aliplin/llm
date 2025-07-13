@@ -9,17 +9,20 @@ import sys
 import os
 import socket
 import yaml
+from pathlib import Path
 
 # 添加当前目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from cross_platform_mysql import CrossPlatformMySQLHoneypot
+from .cross_platform_mysql import CrossPlatformMySQLHoneypot
 import asyncio
 
 def load_config(config_file=None):
     """加载配置文件"""
     if config_file is None:
-        config_file = 'configMySQL.yml'
+        # 获取项目根目录
+        project_root = Path(__file__).parent.parent.parent.parent
+        config_file = project_root / "config" / "configMySQL.yml"
     
     try:
         with open(config_file, 'r', encoding='utf-8') as f:

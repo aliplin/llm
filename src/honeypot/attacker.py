@@ -9,6 +9,7 @@ import random
 import os
 import tiktoken
 from openai import OpenAI
+from pathlib import Path
 
 # 设置 Kimi API 的基础 URL
 OpenAI.api_base = "https://api.moonshot.cn/v1"
@@ -53,11 +54,10 @@ def set_key(env_path):
 
 def read_history(identity, output_dir, reset_prompt):
     """读取历史记录或初始化新会话"""
-    if not os.path.exists(output_dir):
-        # 创建输出目录
-        os.makedirs(os.path.dirname(output_dir), exist_ok=True)
-
-    history = open(output_dir, "a+", encoding="utf-8")
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    log_path = logs_dir / os.path.basename(output_dir)
+    history = open(log_path, "a+", encoding="utf-8")
     history.seek(0)
     content = history.read()
 
@@ -81,6 +81,8 @@ def read_history(identity, output_dir, reset_prompt):
 
 def setParameters(identity, model_name, model_temperature, model_max_tokens, output_dir, log_file):
     """设置和验证参数"""
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir.mkdir(exist_ok=True)
     if model_name is None:
         model_name = identity.get('model', '').strip()
         if not model_name:
@@ -113,6 +115,7 @@ def setParameters(identity, model_name, model_temperature, model_max_tokens, out
         log_file = identity.get('log', '').strip()
         if not log_file:
             raise ValueError("配置文件中缺少 log 参数")
+    log_file = str(logs_dir / os.path.basename(log_file))
 
     return model_name, model_temperature, model_max_tokens, output_dir, log_file
 
@@ -222,8 +225,11 @@ def main():
             messages.append({"role": "user", "content": output})
 
         # 初始化历史文件
-        history = open(output_dir, "a+", encoding="utf-8")
-        if os.stat(output_dir).st_size == 0:
+        logs_dir = Path(__file__).parent.parent.parent / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        log_path = logs_dir / os.path.basename(output_dir)
+        history = open(log_path, "a+", encoding="utf-8")
+        if os.stat(log_path).st_size == 0:
             for msg in messages:
                 history.write(msg["content"] + "\n")
         else:
@@ -233,7 +239,10 @@ def main():
         # 主循环
         run = 1
         while run == 1:
-            logs = open(output_dir, "a+", encoding="utf-8")
+            logs_dir = Path(__file__).parent.parent.parent / "logs"
+            logs_dir.mkdir(exist_ok=True)
+            log_path = logs_dir / os.path.basename(output_dir)
+            logs = open(log_path, "a+", encoding="utf-8")
 
             try:
                 # 调用 Kimi API 生成响应
@@ -291,7 +300,10 @@ def main():
                 break
             except Exception as e:
                 # 记录错误到日志文件
-                logfile = open(log_file, "a+", encoding="utf-8")
+                logs_dir = Path(__file__).parent.parent.parent / "logs"
+                logs_dir.mkdir(exist_ok=True)
+                log_path = logs_dir / os.path.basename(log_file)
+                logfile = open(log_path, "a+", encoding="utf-8")
                 logfile.write(f"\n{datetime.now()}\nError generating response: {str(e)}\n")
                 logfile.close()
                 print(f"发生错误: {e}")

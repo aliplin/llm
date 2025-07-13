@@ -9,7 +9,7 @@ from pathlib import Path
 def start_pop3(openai_client, pop3_identity, pop3_model, pop3_temp, pop3_max_tokens):
     # 获取项目根目录
     project_root = Path(__file__).parent.parent.parent
-    logs_dir = project_root / "src" / "log_manager" / "logs"
+    logs_dir = project_root / "logs"
     logs_dir.mkdir(exist_ok=True)
     pop3_port = int(pop3_identity.get('port', 110))
 

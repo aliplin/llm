@@ -74,8 +74,6 @@ llm/
 
 ## 四、快速启动
 
-### 分别启动
-
 #### 1. 启动IDS系统
 ```bash
 python src/ids/run.py
@@ -83,7 +81,7 @@ python src/ids/run.py
 
 #### 2. 启动蜜罐系统
 ```bash
-python src/honeypot/server.py
+python -m src.honeypot.run
 ```
 
 ### 访问地址

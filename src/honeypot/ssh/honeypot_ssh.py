@@ -119,7 +119,7 @@ class HoneyPotServer(ServerInterface):
         timestamp = self.session_start_time.strftime("%Y-%m-%d_%H-%M-%S")
         # 获取项目根目录
         project_root = Path(__file__).parent.parent.parent
-        logs_dir = project_root / "src" / "log_manager" / "logs"
+        logs_dir = project_root / "logs"
         logs_dir.mkdir(exist_ok=True)  # 确保目录存在
         self.log_ssh_file = logs_dir / f"logSSH_{self.session_uuid}_{timestamp}.txt"
         self.history_ssh_file = logs_dir / f"historySSH_{self.session_uuid}_{timestamp}.txt"
@@ -149,7 +149,7 @@ class HoneyPotServer(ServerInterface):
 
             # 创建日志文件路径
             project_root = Path(__file__).parent.parent.parent
-            logs_dir = project_root / "src" / "log_manager" / "logs"
+            logs_dir = project_root / "logs"
             logs_dir.mkdir(exist_ok=True)  # 确保目录存在
 
             # 使用会话ID和时间戳作为文件名
@@ -457,7 +457,8 @@ def handle_ssh_connection(client_socket, openai_client, identity, model_name,
                           temperature, max_tokens, output_dir, log_file, username, hostname):
     try:
         # 生成或加载RSA密钥
-        key_file = os.path.join(os.path.dirname(__file__), 'host_key')
+        project_root = Path(__file__).parent.parent.parent.parent
+        key_file = project_root / "config" / "host_key"
         if not os.path.exists(key_file):
             host_key = paramiko.RSAKey.generate(2048)
             host_key.write_private_key_file(key_file)

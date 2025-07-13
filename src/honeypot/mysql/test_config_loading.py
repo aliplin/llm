@@ -10,7 +10,10 @@ import yaml
 
 def load_config(config_file='configMySQL.yml'):
     """加载YAML配置文件"""
-    config_path = os.path.join(os.path.dirname(__file__), config_file)
+    # 获取项目根目录
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent.parent.parent
+    config_path = project_root / "config" / config_file
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
