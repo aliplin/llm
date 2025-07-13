@@ -1,5 +1,0 @@
-Session started at: 2025-06-27 20:04:33
-root@honeypot:/home/root$ ls
-Desktop  Documents  Downloads  Music  Pictures  Public  Templates  Videos  opt
-root@honeypot:/home/root/./bin$ cd ./bin
-

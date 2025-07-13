@@ -1,4 +1,4 @@
-# 混合威胁检测与蜜罐系统——整合说明文档
+# 混合威胁检测与蜜罐系统
 
 ---
 
@@ -14,11 +14,42 @@
 
 ## 二、项目结构
 
-- `llm/`：蜜罐与相关配置、脚本
-- `IDS/IDS_Project/`：入侵检测系统（含Web管理界面、LLM分析、数据库等）
-- `Log Manager/`：日志管理与分析
-- `requirements.txt`：依赖列表
-- `install_dependencies.bat/.sh`：一键安装脚本
+```
+llm/
+├── src/                    # 源代码目录
+│   ├── honeypot/          # 蜜罐模块
+│   │   ├── honeypot_ssh.py
+│   │   ├── honeypot_http.py
+│   │   ├── honeypot_mysql.py
+│   │   ├── honeypot_pop3.py
+│   │   ├── server.py
+│   │   └── mysql/         # MySQL蜜罐子模块
+│   ├── ids/               # 入侵检测系统
+│   │   ├── app/           # Web应用
+│   │   ├── templates/     # 网页模板
+│   │   ├── data/          # 数据文件
+│   │   └── run.py         # 启动脚本
+│   ├── log_manager/       # 日志管理
+│   │   ├── log_manager.py
+│   │   ├── log_parser.py
+│   │   ├── templates/     # 网页模板
+│   │   ├── static/        # 静态文件
+│   │   └── logs/          # 日志文件
+│   ├── utils/             # 工具模块
+│   │   └── 可视化.py
+│   └── tests/             # 测试模块
+├── config/                 # 配置文件
+│   ├── configSSH.yml
+│   ├── configHTTP.yml
+│   ├── configMySQL.yml
+│   ├── configPOP3.yml
+│   ├── host_key
+│   └── db_credentials.env
+├── docs/                   # 文档
+├── requirements.txt         # 依赖列表
+├── install_dependencies.bat # Windows安装脚本
+├── install_dependencies.sh  # Linux/Mac安装脚本
+```
 
 ---
 
@@ -43,53 +74,21 @@
 
 ## 四、快速启动
 
-### 1. 检查网络接口（可选）
-  ```bash
-  cd IDS/IDS_Project
-  python check_network.py
-  ```
+### 分别启动
 
-### 2. 运行系统测试（可选）
-  ```bash
-  python test_system.py
-  ```
+#### 1. 启动IDS系统
+```bash
+python src/ids/run.py
+```
 
-### 3. 启动IDS系统（推荐一键启动）
-  ```bash
-  python start_ids.py
-  ```
-  - 启动Web管理界面与LLM分析模块
-  - 需管理员权限（Windows请用"以管理员身份运行"命令行，Linux/Mac用sudo）
+#### 2. 启动蜜罐系统
+```bash
+python src/honeypot/server.py
+```
 
-#### 或分别启动：
-  ```bash
-  python app.py          # 启动Web界面
-  python ids_llm.py      # 启动LLM分析
-  ```
-
-### 4. 启动蜜罐系统
-  ```bash
-  cd llm
-  python server.py -e .env -c configSSH.yml
-  # 或
-  python llm/server.py -e llm/.env -c llm/configSSH.yml
-  ```
-
-### 5. 启动日志系统
-  ```bash
-  cd 'Log Manager'
-  python log_manager.py
-  ```
-
-### 6. 访问Web管理界面
-- 浏览器访问：http://localhost:5001
-- 默认账号：admin  密码：admin123
-
-### 7. 模拟攻击（可选）
-  ```bash
-  ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa root@127.0.0.1 -p 5656
-  # ssh root@127.0.0.1 -p 5656
-  ```
+### 访问地址
+- **Web管理界面**: http://localhost:5000
+- **默认账号**: admin / admin123
 
 ---
 
@@ -117,22 +116,16 @@
 ## 六、配置说明
 
 ### 1. API密钥配置
-- 编辑 `IDS/IDS_Project/ids_llm.py`：
+- 编辑 `src/ids/app/api/auth.py`：
   ```python
   KIMI_API_KEY = "你的Kimi API密钥"
   ```
 
 ### 2. 网络接口配置
-- 系统自动检测，如需手动指定，编辑 `ids_llm.py`：
-  ```python
-  #PVM_IP_ADDRESS, interface_name = get_interface_ip('你的接口名称')
-  ```
+- 系统自动检测，如需手动指定，编辑相关配置文件
 
 ### 3. Token限制
-- 编辑 `ids_llm.py`：
-  ```python
-  #self.token_limit = 1000000  # 每日Token限制
-  ```
+- 编辑相关配置文件调整Token限制
 
 ---
 
@@ -143,8 +136,8 @@
 - Linux/Mac：使用sudo
 
 ### 2. 网络接口检测失败
-- 运行 `python check_network.py` 检查接口
-- 编辑 `ids_llm.py` 手动指定接口
+- 检查网络配置
+- 编辑相关配置文件手动指定接口
 
 ### 3. 依赖缺失
 - 重新运行依赖安装脚本或 `pip install -r requirements.txt`
@@ -154,11 +147,6 @@
 
 ### 5. Token用完
 - 等待次日自动重置，或调整Token限制
-
-### 6. 日志与数据库
-- `ids.log`：系统运行日志
-- `ids.db`：事件数据库
-- `pending_reviews.json`：待审核事件
 
 ---
 
@@ -176,11 +164,7 @@
 
 - 启用详细日志：
   ```bash
-  python -u ids_llm.py
-  ```
-- 运行系统测试：
-  ```bash
-  python test_system.py
+  python -u start_ids.py
   ```
 
 ---

@@ -1,5 +1,0 @@
-MySQL session start: 2025-06-28 09:30:57.425237 from 127.0.0.1:65023
-[2025-06-28 09:30:57] [CMD] select @@version_comment limit 1
-[2025-06-28 09:30:57] [DEFAULT_RESP] Query OK, 0 rows affected
-[2025-06-28 09:30:57] [CMD] select $$
-[2025-06-28 09:30:57] [DEFAULT_RESP] Query OK, 0 rows affected

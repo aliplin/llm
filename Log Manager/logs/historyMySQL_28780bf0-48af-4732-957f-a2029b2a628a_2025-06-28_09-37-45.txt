@@ -1,6 +1,0 @@
-Session started at: 2025-06-28 09:37:45.230185
-mysql> show
-ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'show' at line 1
-
-mysql>
-
