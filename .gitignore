@@ -116,7 +116,7 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-*.db
+#*.db
 *.db-journal
 *.log
 logs/
